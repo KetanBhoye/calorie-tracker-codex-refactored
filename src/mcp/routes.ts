@@ -35,6 +35,26 @@ function sendUnauthorized(res: Response): void {
   res.status(401).json({ error: 'Unauthorized. Provide Bearer token.' });
 }
 
+function buildBaseUrl(req: Request): string {
+  const host = req.headers.host;
+  const protocol = req.headers['x-forwarded-proto']?.toString().split(',')[0] || req.protocol;
+  if (!host) {
+    return `${protocol}://localhost`;
+  }
+  return `${protocol}://${host}`;
+}
+
+function sendUnauthorizedWithMetadata(req: Request, res: Response): void {
+  const baseUrl = buildBaseUrl(req);
+  const protectedResource = `${baseUrl}/.well-known/oauth-protected-resource`;
+  const authorizationServer = `${baseUrl}/.well-known/oauth-authorization-server`;
+  res.setHeader(
+    'WWW-Authenticate',
+    `Bearer realm="mcp", resource_metadata="${protectedResource}", authorization_server="${authorizationServer}", scope="mcp:tools"`
+  );
+  sendUnauthorized(res);
+}
+
 function sendSessionMismatch(res: Response): void {
   res.status(403).json({ error: 'Session does not belong to authenticated user.' });
 }
@@ -55,7 +75,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
         const user = await resolveRequestUser(req, env, existing.user);
 
         if (!user) {
-          sendUnauthorized(res);
+          sendUnauthorizedWithMetadata(req, res);
           return;
         }
 
@@ -70,7 +90,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
 
       const user = await resolveRequestUser(req, env);
       if (!user) {
-        sendUnauthorized(res);
+        sendUnauthorizedWithMetadata(req, res);
         return;
       }
 
@@ -123,7 +143,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
     try {
       const user = await resolveRequestUser(req, env);
       if (!user) {
-        sendUnauthorized(res);
+        sendUnauthorizedWithMetadata(req, res);
         return;
       }
 
@@ -161,7 +181,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
 
       const user = await resolveRequestUser(req, env, existing.user);
       if (!user) {
-        sendUnauthorized(res);
+        sendUnauthorizedWithMetadata(req, res);
         return;
       }
 
