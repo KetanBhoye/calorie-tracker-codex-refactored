@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Account</title>
+    <style>
+      :root {
+        --bg: #1e1c2d;
+        --card: #2b2a44;
+        --accent: #ff8f70;
+        --text: #f7f2f2;
+        --muted: #c7bec6;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top right, #3d3566, #181626);
+        color: var(--text);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+      .card {
+        width: min(430px, 92vw);
+        background: var(--card);
+        border-radius: 16px;
+        padding: 24px;
+      }
+      form { display: grid; gap: 12px; }
+      input {
+        border: 1px solid #554f73;
+        border-radius: 10px;
+        padding: 12px;
+        background: #25233b;
+        color: var(--text);
+      }
+      button {
+        border: none;
+        border-radius: 10px;
+        padding: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        background: var(--accent);
+        color: #3f1400;
+      }
+      .error { color: #ffb2b2; min-height: 1.2em; }
+      a { color: #ffb3a2; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Create account</h1>
+      <p>Set up a profile and start tracking calories from web or MCP clients.</p>
+      <form id="signupForm">
+        <input name="name" type="text" placeholder="Full name" required />
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password (min 8 chars)" minlength="8" required />
+        <button type="submit">Create Account</button>
+      </form>
+      <div class="error" id="error"></div>
+      <p>Already have an account? <a href="/login">Sign in</a></p>
+    </div>
+
+    <script>
+      const form = document.getElementById('signupForm');
+      const errorEl = document.getElementById('error');
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        errorEl.textContent = '';
+
+        const formData = new FormData(form);
+        const payload = {
+          name: formData.get('name'),
+          email: formData.get('email'),
+          password: formData.get('password'),
+        };
+
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          errorEl.textContent = data.error || 'Account creation failed';
+          return;
+        }
+
+        window.location.href = '/dashboard';
+      });
+    </script>
+  </body>
+</html>

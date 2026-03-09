@@ -1,0 +1,166 @@
+import express, { type Express } from 'express';
+import { resolve } from 'node:path';
+import type { Server } from 'node:http';
+import { getConfig, type AppConfig } from './config.js';
+import { openSqliteDatabase } from './db/sqlite-adapter.js';
+import { bootstrapDatabase } from './db/bootstrap.js';
+import { registerApiRoutes } from './http/api.js';
+import { createOAuthRouter } from './auth/oauth.js';
+import { registerMcpRoutes } from './mcp/routes.js';
+import type { AppEnv } from './db/types.js';
+
+export interface RunningApp {
+  app: Express;
+  server?: Server;
+  close: () => Promise<void>;
+}
+
+export async function createApp(config: AppConfig = getConfig()): Promise<RunningApp> {
+  const { raw, compat } = openSqliteDatabase(resolve(config.databasePath));
+
+  await bootstrapDatabase(compat, {
+    migrationsDir: resolve(process.cwd(), 'migrations/portable'),
+    adminApiKey: config.adminApiKey,
+    adminEmail: process.env.ADMIN_EMAIL,
+    adminPassword: process.env.ADMIN_PASSWORD,
+  });
+
+  const env: AppEnv = {
+    DB: compat,
+    ADMIN_API_KEY: config.adminApiKey,
+  };
+
+  const app = express();
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: false }));
+
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Authorization, Content-Type, Mcp-Session-Id, Accept, X-API-Key, Last-Event-ID'
+    );
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send();
+      return;
+    }
+
+    next();
+  });
+
+  registerApiRoutes(app, {
+    env,
+    sessionTtlHours: config.sessionTtlHours,
+    secureCookies: config.nodeEnv === 'production',
+  });
+
+  app.use(
+    createOAuthRouter({
+      db: env.DB,
+      adminApiKey: config.adminApiKey,
+      baseUrl: config.baseUrl,
+    })
+  );
+
+  registerMcpRoutes(app, env);
+
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'calorie-tracker-mcp-server',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/openapi.json', (req, res) => {
+    const host = req.headers.host || `localhost:${config.port}`;
+    const protocol = req.headers['x-forwarded-proto']?.toString() || req.protocol;
+    const baseUrl = `${protocol}://${host}`;
+
+    res.json({
+      openapi: '3.1.0',
+      info: {
+        title: 'Calorie Tracker MCP Server',
+        version: '2.0.0',
+        description: 'Portable MCP calorie tracking server with dashboard and OAuth',
+      },
+      servers: [{ url: baseUrl }],
+      paths: {
+        '/mcp': {
+          post: { summary: 'MCP streamable HTTP endpoint' },
+          get: { summary: 'MCP streamable SSE stream endpoint' },
+          delete: { summary: 'Terminate MCP session' },
+        },
+        '/sse': {
+          get: { summary: 'Legacy SSE endpoint' },
+        },
+      },
+    });
+  });
+
+  const publicDir = resolve(process.cwd(), 'public');
+  app.use(express.static(publicDir));
+
+  app.get('/login', (_req, res) => {
+    res.sendFile(resolve(publicDir, 'login.html'));
+  });
+
+  app.get('/signup', (_req, res) => {
+    res.sendFile(resolve(publicDir, 'signup.html'));
+  });
+
+  app.get('/dashboard', (_req, res) => {
+    res.sendFile(resolve(publicDir, 'dashboard.html'));
+  });
+
+  app.get('/', (_req, res) => {
+    res.sendFile(resolve(publicDir, 'index.html'));
+  });
+
+  app.use((req, res) => {
+    res.status(404).json({ error: `Not found: ${req.path}` });
+  });
+
+  return {
+    app,
+    close: async () => {
+      raw.close();
+    },
+  };
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  const config = getConfig();
+
+  createApp(config)
+    .then((running) => {
+      running.server = running.app.listen(config.port, () => {
+        console.log(`Calorie Tracker MCP server running on ${config.baseUrl}`);
+      });
+
+      const shutdown = async () => {
+        if (running.server) {
+          await new Promise<void>((resolveShutdown) => {
+            running.server?.close(() => resolveShutdown());
+          });
+        }
+
+        await running.close();
+      };
+
+      process.on('SIGINT', () => {
+        shutdown().finally(() => process.exit(0));
+      });
+
+      process.on('SIGTERM', () => {
+        shutdown().finally(() => process.exit(0));
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to start application:', error);
+      process.exit(1);
+    });
+}

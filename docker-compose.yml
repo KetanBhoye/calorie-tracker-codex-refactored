@@ -1,0 +1,31 @@
+services:
+  calorie-tracker-mcp:
+    build: .
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      PORT: "${PORT:-8787}"
+      DATABASE_PATH: ${DATABASE_PATH:-/data/calorie-tracker.db}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY is required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      BASE_URL: ${BASE_URL:-http://localhost:8787}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+    volumes:
+      - calorie_tracker_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  calorie_tracker_data:

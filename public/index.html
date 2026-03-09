@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calorie Tracker MCP</title>
+    <style>
+      :root {
+        --bg: #0b1d26;
+        --card: #11313f;
+        --accent: #ff7a1a;
+        --text: #f3f6f7;
+        --muted: #9db3bb;
+        --border: #215063;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top right, #174457, var(--bg));
+        color: var(--text);
+        padding: 24px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .hero {
+        background: rgba(17, 49, 63, 0.82);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 28px;
+      }
+      h1 { margin: 0 0 8px; font-size: 2rem; }
+      p { color: var(--muted); line-height: 1.5; }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        text-decoration: none;
+        color: var(--text);
+        background: #1f5265;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #1f1102;
+        font-weight: 700;
+      }
+      .grid {
+        margin-top: 20px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      }
+      .card {
+        background: rgba(17, 49, 63, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      code {
+        background: #07212b;
+        border: 1px solid #1c4e60;
+        color: #d1e3e9;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <section class="hero">
+        <h1>Portable Calorie Tracker MCP Server</h1>
+        <p>
+          Cloudflare-free MCP server with web dashboard, profile tracking, OAuth,
+          and Bearer token authentication. Deploy on VPS, Docker, Railway, Render,
+          Fly.io, or your private server.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="/dashboard">Open Dashboard</a>
+          <a class="btn" href="/signup">Create Account</a>
+          <a class="btn" href="/login">Sign In</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h3>MCP Endpoints</h3>
+          <p><code>POST/GET/DELETE /mcp</code> Streamable HTTP transport</p>
+          <p><code>GET /sse</code> + <code>POST /messages</code> legacy SSE transport</p>
+        </article>
+        <article class="card">
+          <h3>OAuth Endpoints</h3>
+          <p><code>GET /oauth/authorize</code></p>
+          <p><code>POST /oauth/token</code></p>
+          <p><code>POST /oauth/register</code></p>
+          <p><code>GET /.well-known/oauth-authorization-server</code></p>
+        </article>
+        <article class="card">
+          <h3>Health & Metadata</h3>
+          <p><code>GET /health</code></p>
+          <p><code>GET /openapi.json</code></p>
+        </article>
+      </section>
+    </div>
+  </body>
+</html>
