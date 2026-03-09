@@ -65,6 +65,60 @@ export interface ProfileWithCalculations extends UserProfile {
   tdee_calories?: number;
 }
 
+export interface BodyMeasurement {
+  id: string;
+  user_id: string;
+  recorded_date: string;
+  source_app?: string;
+  source_image_url?: string;
+  source_image_ref?: string;
+  body_weight_kg?: number;
+  body_mass_index?: number;
+  body_fat_ratio_pct?: number;
+  muscle_rate_pct?: number;
+  body_water_pct?: number;
+  bone_mass_kg?: number;
+  basal_metabolic_rate_kcal?: number;
+  metabolic_age_years?: number;
+  visceral_fat_pct?: number;
+  subcutaneous_fat_pct?: number;
+  protein_mass_kg?: number;
+  muscle_mass_kg?: number;
+  weight_without_fat_kg?: number;
+  obesity_level?: string;
+  notes?: string;
+  raw_payload_json?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProgressPoseType = 'front' | 'back' | 'left_side' | 'right_side' | 'other';
+
+export interface ProgressPhoto {
+  id: string;
+  user_id: string;
+  recorded_date: string;
+  pose_type: ProgressPoseType;
+  image_url?: string;
+  image_ref?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTrackingPreferences {
+  user_id: string;
+  display_name?: string;
+  daily_calorie_goal?: number;
+  daily_protein_goal_g?: number;
+  daily_carbs_goal_g?: number;
+  daily_fat_goal_g?: number;
+  behavior_instructions?: string;
+  macros_cache_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Tool parameter types
 export interface AddEntryParams {
   food_name: string;
@@ -129,4 +183,68 @@ export interface GetProfileHistoryParams {
   end_date?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface AddBodyMeasurementParams {
+  recorded_date?: string;
+  source_app?: string;
+  source_image_url?: string;
+  source_image_ref?: string;
+  body_weight_kg?: number;
+  body_mass_index?: number;
+  body_fat_ratio_pct?: number;
+  muscle_rate_pct?: number;
+  body_water_pct?: number;
+  bone_mass_kg?: number;
+  basal_metabolic_rate_kcal?: number;
+  metabolic_age_years?: number;
+  visceral_fat_pct?: number;
+  subcutaneous_fat_pct?: number;
+  protein_mass_kg?: number;
+  muscle_mass_kg?: number;
+  weight_without_fat_kg?: number;
+  obesity_level?: string;
+  notes?: string;
+  raw_payload_json?: string;
+}
+
+export interface ListBodyMeasurementsParams {
+  date?: string;
+  start_date?: string;
+  end_date?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AddProgressPhotoParams {
+  recorded_date?: string;
+  pose_type: ProgressPoseType;
+  image_url?: string;
+  image_ref?: string;
+  notes?: string;
+}
+
+export interface ListProgressPhotosParams {
+  date?: string;
+  start_date?: string;
+  end_date?: string;
+  pose_type?: ProgressPoseType;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CompareProgressParams {
+  from_date: string;
+  to_date: string;
+  include_photos?: boolean;
+}
+
+export interface SetUserPreferencesParams {
+  display_name?: string;
+  daily_calorie_goal?: number;
+  daily_protein_goal_g?: number;
+  daily_carbs_goal_g?: number;
+  daily_fat_goal_g?: number;
+  behavior_instructions?: string;
+  macros_cache_notes?: string;
 }

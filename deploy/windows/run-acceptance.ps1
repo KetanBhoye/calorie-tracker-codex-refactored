@@ -41,6 +41,7 @@ $args = @(
   "--admin-email", $envVars['ADMIN_EMAIL'],
   "--admin-password", $envVars['ADMIN_PASSWORD'],
   "--compose-project-dir", $ProjectRoot,
+  "--compose-env-file", $EnvFile,
   "--service-name", $ServiceName
 )
 

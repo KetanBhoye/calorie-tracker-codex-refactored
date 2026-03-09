@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { D1DatabaseCompat } from './types.js';
 import { createPasswordHash, hashSha256 } from '../auth/security.js';
@@ -16,6 +16,7 @@ export async function bootstrapDatabase(
 ): Promise<void> {
   await runMigrations(db, options.migrationsDir);
   await ensureDefaultAdmin(db, options);
+  await ensureDefaultTrackingPreferences(db, options.migrationsDir);
   await cleanupExpiredAuthData(db);
 }
 
@@ -106,5 +107,88 @@ async function cleanupExpiredAuthData(db: D1DatabaseCompat): Promise<void> {
   await db
     .prepare("DELETE FROM web_sessions WHERE datetime(expires_at) <= datetime('now')")
     .bind()
+    .run();
+}
+
+function extractNumber(markdown: string, pattern: RegExp): number | undefined {
+  const match = markdown.match(pattern);
+  if (!match || !match[1]) {
+    return undefined;
+  }
+
+  const value = Number.parseFloat(match[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+async function ensureDefaultTrackingPreferences(
+  db: D1DatabaseCompat,
+  migrationsDir: string
+): Promise<void> {
+  const projectRoot = join(migrationsDir, '..', '..');
+  const instructionsPath = join(
+    projectRoot,
+    '.github',
+    'instructions',
+    'calorie tracking.instructions.md'
+  );
+  const macroCachePath = join(
+    projectRoot,
+    '.github',
+    'instructions',
+    'food-macros-cache.md'
+  );
+
+  if (!existsSync(instructionsPath) && !existsSync(macroCachePath)) {
+    return;
+  }
+
+  const existing = await db
+    .prepare('SELECT user_id FROM user_tracking_preferences WHERE user_id = ?')
+    .bind('admin')
+    .first<{ user_id: string }>();
+
+  if (existing) {
+    return;
+  }
+
+  const behaviorInstructions = existsSync(instructionsPath)
+    ? readFileSync(instructionsPath, 'utf8').trim()
+    : null;
+  const macrosCacheNotes = existsSync(macroCachePath)
+    ? readFileSync(macroCachePath, 'utf8').trim()
+    : null;
+
+  const dailyCalorieGoal = behaviorInstructions
+    ? extractNumber(behaviorInstructions, /Daily Calorie Goal:\s*([0-9.]+)/i)
+    : undefined;
+  const dailyProteinGoal = behaviorInstructions
+    ? extractNumber(behaviorInstructions, /Daily Protein Goal:\s*([0-9.]+)\s*g/i)
+    : undefined;
+  const dailyCarbsGoal = behaviorInstructions
+    ? extractNumber(behaviorInstructions, /Daily Carbs Goal:\s*~?\s*([0-9.]+)\s*g/i)
+    : undefined;
+  const dailyFatGoal = behaviorInstructions
+    ? extractNumber(behaviorInstructions, /Daily Fat Goal:\s*~?\s*([0-9.]+)\s*g/i)
+    : undefined;
+
+  await db
+    .prepare(`
+      INSERT INTO user_tracking_preferences (
+        user_id, display_name, daily_calorie_goal, daily_protein_goal_g,
+        daily_carbs_goal_g, daily_fat_goal_g, behavior_instructions, macros_cache_notes,
+        created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `)
+    .bind(
+      'admin',
+      'Admin User',
+      dailyCalorieGoal ? Math.round(dailyCalorieGoal) : null,
+      dailyProteinGoal ?? null,
+      dailyCarbsGoal ?? null,
+      dailyFatGoal ?? null,
+      behaviorInstructions,
+      macrosCacheNotes
+    )
     .run();
 }

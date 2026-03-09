@@ -123,6 +123,7 @@ const adminApiKey = args['admin-api-key'] || process.env.ADMIN_API_KEY;
 const adminEmail = args['admin-email'] || process.env.ADMIN_EMAIL;
 const adminPassword = args['admin-password'] || process.env.ADMIN_PASSWORD;
 const composeProjectDir = args['compose-project-dir'];
+const composeEnvFile = args['compose-env-file'];
 const serviceName = args['service-name'] || 'calorie-tracker-mcp';
 
 if (!adminApiKey) {
@@ -217,11 +218,13 @@ function restartContainerIfConfigured() {
   }
 
   info(`Restarting container via docker compose (${serviceName})...`);
-  execFileSync(
-    'docker',
-    ['compose', '--project-directory', composeProjectDir, 'restart', serviceName],
-    { stdio: 'inherit' }
-  );
+  const composeArgs = ['compose', '--project-directory', composeProjectDir];
+  if (composeEnvFile) {
+    composeArgs.push('--env-file', composeEnvFile);
+  }
+  composeArgs.push('restart', serviceName);
+
+  execFileSync('docker', composeArgs, { stdio: 'inherit' });
   return true;
 }
 

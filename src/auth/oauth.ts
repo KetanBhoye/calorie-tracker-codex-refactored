@@ -119,6 +119,29 @@ function parseRedirectUris(raw: string): string[] {
   return [];
 }
 
+function parseBasicAuthHeader(
+  authHeader: string | undefined
+): { clientId: string; clientSecret: string } | null {
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(authHeader.slice('Basic '.length), 'base64').toString('utf8');
+    const separatorIndex = decoded.indexOf(':');
+    if (separatorIndex <= 0) {
+      return null;
+    }
+
+    return {
+      clientId: decoded.slice(0, separatorIndex),
+      clientSecret: decoded.slice(separatorIndex + 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const router = Router();
 
@@ -133,7 +156,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
       registration_endpoint: `${baseUrl}/oauth/register`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['client_secret_post'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['mcp:tools'],
     });
@@ -290,8 +313,9 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   router.post('/oauth/token', async (req, res) => {
     try {
       const grantType = String(req.body.grant_type || '');
-      const clientId = String(req.body.client_id || '');
-      const clientSecret = String(req.body.client_secret || '');
+      const basicAuth = parseBasicAuthHeader(req.headers.authorization?.toString());
+      const clientId = String(req.body.client_id || basicAuth?.clientId || '');
+      const clientSecret = String(req.body.client_secret || basicAuth?.clientSecret || '');
 
       if (!grantType || !clientId || !clientSecret) {
         sendOAuthError(res, 400, 'invalid_request', 'Missing grant_type, client_id, or client_secret');

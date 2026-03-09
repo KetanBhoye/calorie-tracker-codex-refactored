@@ -153,6 +153,8 @@ docker run -p 8787:8787 \
 
 ## Core MCP Tools
 
+- `get_user_preferences`
+- `set_user_preferences`
 - `list_entries`
 - `add_entry`
 - `update_entry`
@@ -160,5 +162,10 @@ docker run -p 8787:8787 \
 - `get_profile`
 - `update_profile`
 - `get_profile_history`
+- `add_body_measurement`
+- `list_body_measurements`
+- `add_progress_photo`
+- `list_progress_photos`
+- `compare_progress`
 - `register_user` (admin)
 - `revoke_user` (admin)

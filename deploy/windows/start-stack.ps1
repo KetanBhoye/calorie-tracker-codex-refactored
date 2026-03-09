@@ -25,7 +25,7 @@ if (-not (Test-Path -LiteralPath $EnvFile)) {
 Write-Host "Starting Docker stack from $ProjectRoot using $EnvFile ..."
 docker compose --project-directory $ProjectRoot --env-file $EnvFile up -d --build
 
-$containerId = (docker compose --project-directory $ProjectRoot ps -q $ServiceName).Trim()
+$containerId = (docker compose --project-directory $ProjectRoot --env-file $EnvFile ps -q $ServiceName).Trim()
 if (-not $containerId) {
   throw "Unable to resolve container for service '$ServiceName'."
 }

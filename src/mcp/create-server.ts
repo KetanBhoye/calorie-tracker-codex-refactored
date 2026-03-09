@@ -19,6 +19,19 @@ import {
   getProfileHistory,
   type GetProfileHistoryParams,
   type UpdateProfileParams,
+  addBodyMeasurementHandler,
+  listBodyMeasurementsHandler,
+  addProgressPhotoHandler,
+  listProgressPhotosHandler,
+  compareProgressHandler,
+  setUserPreferencesHandler,
+  getUserPreferencesHandler,
+  type AddBodyMeasurementParams,
+  type ListBodyMeasurementsParams,
+  type AddProgressPhotoParams,
+  type ListProgressPhotosParams,
+  type CompareProgressParams,
+  type SetUserPreferencesParams,
 } from '../tools/index.js';
 
 export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpServer {
@@ -28,8 +41,31 @@ export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpS
   });
 
   server.tool(
+    'get_user_preferences',
+    'Get user-specific goals and behavior instructions saved on the server. Use this first when you need personalized tracking behavior.',
+    {},
+    async (params) => getUserPreferencesHandler(params, user.userId, env)
+  );
+
+  server.tool(
+    'set_user_preferences',
+    'Set user-specific goals and behavior instructions (stored per user so they work across all MCP clients).',
+    {
+      display_name: z.string().min(1).max(100).optional(),
+      daily_calorie_goal: z.number().int().min(500).max(10000).optional(),
+      daily_protein_goal_g: z.number().min(0).max(1000).optional(),
+      daily_carbs_goal_g: z.number().min(0).max(2000).optional(),
+      daily_fat_goal_g: z.number().min(0).max(1000).optional(),
+      behavior_instructions: z.string().max(50000).optional(),
+      macros_cache_notes: z.string().max(150000).optional(),
+    },
+    async (params) =>
+      setUserPreferencesHandler(params as SetUserPreferencesParams, user.userId, env)
+  );
+
+  server.tool(
     'list_entries',
-    'List food entries for a specific date with pagination. Returns daily calorie intake and nutritional data.',
+    'List food entries for a specific date with pagination. Returns daily calorie intake and nutritional data. Use get_user_preferences for personalized goals.',
     {
       date: z
         .string()
@@ -55,7 +91,7 @@ export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpS
 
   server.tool(
     'add_entry',
-    'Add a new food entry to the calorie tracker',
+    'Add a new food entry to the calorie tracker. Use get_user_preferences for personalized goals and behavior.',
     {
       food_name: z
         .string()
@@ -271,6 +307,118 @@ export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpS
     },
     async (params) =>
       getProfileHistory(params as any, user.userId, env)
+  );
+
+  server.tool(
+    'add_body_measurement',
+    'Add a body-composition measurement (e.g., from Dr. Trust scale screenshot). Saves daily vitals and syncs key values to profile tracking.',
+    {
+      recorded_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      source_app: z.string().optional(),
+      source_image_url: z.string().url().optional(),
+      source_image_ref: z.string().optional(),
+      body_weight_kg: z.number().min(1).max(1000).optional(),
+      body_mass_index: z.number().min(1).max(100).optional(),
+      body_fat_ratio_pct: z.number().min(0).max(100).optional(),
+      muscle_rate_pct: z.number().min(0).max(100).optional(),
+      body_water_pct: z.number().min(0).max(100).optional(),
+      bone_mass_kg: z.number().min(0).max(100).optional(),
+      basal_metabolic_rate_kcal: z.number().min(1).max(10000).optional(),
+      metabolic_age_years: z.number().int().min(1).max(150).optional(),
+      visceral_fat_pct: z.number().min(0).max(100).optional(),
+      subcutaneous_fat_pct: z.number().min(0).max(100).optional(),
+      protein_mass_kg: z.number().min(0).max(300).optional(),
+      muscle_mass_kg: z.number().min(0).max(500).optional(),
+      weight_without_fat_kg: z.number().min(0).max(1000).optional(),
+      obesity_level: z.string().optional(),
+      notes: z.string().optional(),
+      raw_payload_json: z.string().optional(),
+    },
+    async (params) =>
+      addBodyMeasurementHandler(params as AddBodyMeasurementParams, user.userId, env)
+  );
+
+  server.tool(
+    'list_body_measurements',
+    'List historical body-composition measurements for progress tracking.',
+    {
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      start_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      end_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      limit: z.number().int().min(1).max(200).default(30).optional(),
+      offset: z.number().int().min(0).default(0).optional(),
+    },
+    async (params) =>
+      listBodyMeasurementsHandler(params as ListBodyMeasurementsParams, user.userId, env)
+  );
+
+  server.tool(
+    'add_progress_photo',
+    'Save a progress photo reference (front/back/side) with notes so you can compare physique changes later.',
+    {
+      recorded_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      pose_type: z.enum(['front', 'back', 'left_side', 'right_side', 'other']),
+      image_url: z.string().url().optional(),
+      image_ref: z.string().optional(),
+      notes: z.string().optional(),
+    },
+    async (params) =>
+      addProgressPhotoHandler(params as AddProgressPhotoParams, user.userId, env)
+  );
+
+  server.tool(
+    'list_progress_photos',
+    'List stored progress photo references with filters by date and pose type.',
+    {
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      start_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      end_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+        .optional(),
+      pose_type: z.enum(['front', 'back', 'left_side', 'right_side', 'other']).optional(),
+      limit: z.number().int().min(1).max(200).default(30).optional(),
+      offset: z.number().int().min(0).default(0).optional(),
+    },
+    async (params) =>
+      listProgressPhotosHandler(params as ListProgressPhotosParams, user.userId, env)
+  );
+
+  server.tool(
+    'compare_progress',
+    'Compare body measurements between two dates and optionally include progress photo references for side-by-side review.',
+    {
+      from_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+      to_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+      include_photos: z.boolean().default(true).optional(),
+    },
+    async (params) =>
+      compareProgressHandler(params as CompareProgressParams, user.userId, env)
   );
 
   return server;
