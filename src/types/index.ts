@@ -248,3 +248,8 @@ export interface SetUserPreferencesParams {
   behavior_instructions?: string;
   macros_cache_notes?: string;
 }
+
+export interface GetUserPreferencesParams {
+  include_full_text?: boolean;
+  max_chars_per_field?: number;
+}

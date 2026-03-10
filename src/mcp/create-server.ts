@@ -32,6 +32,7 @@ import {
   type ListProgressPhotosParams,
   type CompareProgressParams,
   type SetUserPreferencesParams,
+  type GetUserPreferencesParams,
 } from '../tools/index.js';
 
 export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpServer {
@@ -42,9 +43,22 @@ export function createCalorieTrackerMcpServer(env: AppEnv, user: AuthUser): McpS
 
   server.tool(
     'get_user_preferences',
-    'Get user-specific goals and behavior instructions saved on the server. Use this first when you need personalized tracking behavior.',
-    {},
-    async (params) => getUserPreferencesHandler(params, user.userId, env)
+    'Get user-specific goals and behavior instructions saved on the server. By default, long text fields are truncated for connector reliability.',
+    {
+      include_full_text: z
+        .boolean()
+        .optional()
+        .describe('Set true to return complete behavior_instructions and macros_cache_notes fields.'),
+      max_chars_per_field: z
+        .number()
+        .int()
+        .min(500)
+        .max(20000)
+        .optional()
+        .describe('When include_full_text is false, truncate long text fields to this many characters.'),
+    },
+    async (params) =>
+      getUserPreferencesHandler(params as GetUserPreferencesParams, user.userId, env)
   );
 
   server.tool(

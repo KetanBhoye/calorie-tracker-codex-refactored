@@ -147,6 +147,8 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
         onsessioninitialized: (newSessionId) => {
           streamableSessions.set(newSessionId, { transport, user });
         },
+        // Improves compatibility with connector clients that prefer JSON over SSE envelopes.
+        enableJsonResponse: true,
       });
 
       transport.onclose = () => {
