@@ -17,6 +17,40 @@ interface SseSession {
   user: AuthUser;
 }
 
+function normalizeMcpRequestBody(body: unknown): unknown {
+  const requests = Array.isArray(body) ? body : [body];
+
+  for (const request of requests) {
+    if (!request || typeof request !== 'object') {
+      continue;
+    }
+
+    const candidate = request as {
+      method?: unknown;
+      params?: unknown;
+    };
+
+    if (candidate.method !== 'tools/call') {
+      continue;
+    }
+
+    if (!candidate.params || typeof candidate.params !== 'object') {
+      candidate.params = { arguments: {} };
+      continue;
+    }
+
+    const params = candidate.params as {
+      arguments?: unknown;
+    };
+
+    if (params.arguments === undefined || params.arguments === null) {
+      params.arguments = {};
+    }
+  }
+
+  return body;
+}
+
 async function resolveRequestUser(
   req: Request,
   env: AppEnv,
@@ -73,6 +107,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
       if (sessionId && streamableSessions.has(sessionId)) {
         const existing = streamableSessions.get(sessionId)!;
         const user = await resolveRequestUser(req, env, existing.user);
+        const requestBody = normalizeMcpRequestBody(req.body);
 
         if (!user) {
           sendUnauthorizedWithMetadata(req, res);
@@ -84,7 +119,7 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
           return;
         }
 
-        await existing.transport.handleRequest(req as any, res as any, req.body);
+        await existing.transport.handleRequest(req as any, res as any, requestBody);
         return;
       }
 
@@ -123,7 +158,11 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
 
       const server = createCalorieTrackerMcpServer(env, user);
       await server.connect(transport);
-      await transport.handleRequest(req as any, res as any, req.body);
+      await transport.handleRequest(
+        req as any,
+        res as any,
+        normalizeMcpRequestBody(req.body)
+      );
     } catch (error) {
       console.error('MCP /mcp error:', error);
       if (!res.headersSent) {
@@ -190,7 +229,11 @@ export function registerMcpRoutes(app: Express, env: AppEnv): void {
         return;
       }
 
-      await existing.transport.handlePostMessage(req as any, res as any, req.body);
+      await existing.transport.handlePostMessage(
+        req as any,
+        res as any,
+        normalizeMcpRequestBody(req.body)
+      );
     } catch (error) {
       console.error('MCP /messages error:', error);
       if (!res.headersSent) {

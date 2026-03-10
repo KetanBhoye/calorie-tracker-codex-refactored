@@ -35,6 +35,24 @@ export async function createApp(config: AppConfig = getConfig()): Promise<Runnin
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
 
+  // Compatibility aliases for OAuth clients that fall back to root auth paths.
+  app.use((req, _res, next) => {
+    const aliasMap: Record<string, string> = {
+      '/authorize': '/oauth/authorize',
+      '/token': '/oauth/token',
+      '/register': '/oauth/register',
+    };
+
+    const aliasTarget = aliasMap[req.path];
+    if (aliasTarget) {
+      const queryIndex = req.url.indexOf('?');
+      const queryString = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
+      req.url = `${aliasTarget}${queryString}`;
+    }
+
+    next();
+  });
+
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
