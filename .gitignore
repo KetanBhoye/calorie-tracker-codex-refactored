@@ -74,3 +74,7 @@ coverage/
 test-*.sh
 test-*.js
 scripts/
+
+# Deployment credentials (sensitive)
+DEPLOYMENT_INFO.md
+claude_desktop_config.json
