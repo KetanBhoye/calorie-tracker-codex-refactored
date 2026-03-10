@@ -6,8 +6,8 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Start command runs migrations before starting the server
-startCommand = "pnpm db:migrate && pnpm start"
+# Migrations run automatically on app startup (see src/index.ts bootstrapDatabase)
+startCommand = "pnpm start"
 
 # Health check configuration
 healthcheckPath = "/health"

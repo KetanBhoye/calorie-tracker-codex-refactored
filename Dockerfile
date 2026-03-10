@@ -19,6 +19,5 @@ RUN mkdir -p /app/data
 
 EXPOSE 8787
 
-# Railway will use the start command from railway.toml
-# For direct Docker usage: run migrations then start
-CMD ["sh", "-c", "pnpm db:migrate && pnpm start"]
+# Migrations run automatically on startup (see src/index.ts)
+CMD ["pnpm", "start"]
