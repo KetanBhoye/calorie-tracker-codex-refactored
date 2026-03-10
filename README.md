@@ -134,7 +134,31 @@ docker run -p 8787:8787 \
   calorie-tracker-mcp
 ```
 
-### 3) Windows laptop + Tailscale Funnel (free HTTPS)
+### 3) Railway (free plan available)
+
+Easiest cloud deployment with automatic HTTPS and $5/month free tier:
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and deploy
+railway login
+railway init
+railway up
+
+# Generate public domain
+railway domain
+
+# Set environment variables (see deploy/railway/README.md)
+railway variables set ADMIN_API_KEY=$(openssl rand -hex 32)
+railway variables set ADMIN_EMAIL=admin@yourdomain.com
+# ... (see full guide)
+```
+
+Full Railway deployment guide: `deploy/railway/README.md`
+
+### 4) Windows laptop + Tailscale Funnel (free HTTPS)
 
 - Full deployment guide: `deploy/windows/README.md`
 - Production env template: `.env.production.example`

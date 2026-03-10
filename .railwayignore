@@ -1,0 +1,50 @@
+# Railway deployment ignore file
+# These files/directories won't be uploaded to Railway
+
+# Development
+node_modules/
+.git/
+.github/
+
+# Environment files (set via Railway variables instead)
+.env
+.env.*
+!.env.railway.example
+
+# Local data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.vitest/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# Documentation (not needed at runtime)
+README.md
+deploy/windows/
+
+# Other
+.editorconfig

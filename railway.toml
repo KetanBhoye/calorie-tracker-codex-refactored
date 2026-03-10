@@ -1,0 +1,21 @@
+# Railway deployment configuration
+# Docs: https://docs.railway.app/deploy/deployments#railway-toml
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Start command runs migrations before starting the server
+startCommand = "pnpm db:migrate && pnpm start"
+
+# Health check configuration
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+
+# Restart policy for failures
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Optional: Set minimum instances (free tier allows 1)
+# numReplicas = 1

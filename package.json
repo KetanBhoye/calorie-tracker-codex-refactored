@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch --import tsx/esm src/index.ts",
     "start": "node --import tsx/esm src/index.ts",
+    "build": "echo 'No build step required - TypeScript runs via tsx'",
     "format": "biome format --write",
     "lint:fix": "biome lint --fix",
     "type-check": "tsc --noEmit",
