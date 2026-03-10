@@ -36,7 +36,7 @@ export const getProfileHistory: ToolHandler<
   }
 
   try {
-    const validatedParams = getProfileHistoryParamsSchema.parse(params);
+    const validatedParams = getProfileHistoryParamsSchema.parse(params ?? {});
 
     // Validate date range
     if (validatedParams.start_date && validatedParams.end_date) {

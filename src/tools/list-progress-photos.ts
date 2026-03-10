@@ -37,7 +37,7 @@ export const listProgressPhotosHandler: ToolHandler<
   }
 
   try {
-    const validated = listProgressPhotosSchema.parse(params);
+    const validated = listProgressPhotosSchema.parse(params ?? {});
     const repository = new ProgressPhotoRepository(env.DB);
 
     const photos = await repository.listByUser(userId, {

@@ -17,7 +17,7 @@ export const listEntriesHandler: ToolHandler<ListEntriesParams> = async (
 
   try {
     const repository = new FoodEntryRepository(env.DB);
-    const entries = await repository.findByUserAndDate(userId, params);
+    const entries = await repository.findByUserAndDate(userId, params ?? {});
 
     return createSuccessResponse(
       `Found ${entries.length} entries for user ${userId}:\n${JSON.stringify(

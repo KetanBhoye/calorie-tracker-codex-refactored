@@ -36,7 +36,7 @@ export const listBodyMeasurementsHandler: ToolHandler<
   }
 
   try {
-    const validated = listBodyMeasurementsSchema.parse(params);
+    const validated = listBodyMeasurementsSchema.parse(params ?? {});
     const repository = new BodyMeasurementRepository(env.DB);
 
     const measurements = await repository.listByUser(userId, {

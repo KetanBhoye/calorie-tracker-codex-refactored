@@ -29,7 +29,7 @@ export class FoodEntryRepository {
     return entryId;
   }
 
-  async findByUserAndDate(userId: string, params: ListEntriesParams): Promise<FoodEntry[]> {
+  async findByUserAndDate(userId: string, params: ListEntriesParams = {}): Promise<FoodEntry[]> {
     const { date, limit = 10, offset = 0 } = params;
 
     const result = await this.db.prepare(
