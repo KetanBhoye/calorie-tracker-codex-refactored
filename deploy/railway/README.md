@@ -200,6 +200,65 @@ For production use, consider:
 2. Using Railway's PostgreSQL addon (requires code changes)
 3. Regular database backups via cron job
 
+## Backup and Restore Scripts (macOS/Linux)
+
+Two helper scripts are available for Railway SQLite operations:
+
+- `deploy/railway/backup-db.sh`
+- `deploy/railway/restore-db.sh`
+
+### Prerequisites
+
+1. Install and login to Railway CLI.
+2. Link your project once from repo root:
+
+```bash
+railway login
+railway link
+```
+
+3. Make scripts executable:
+
+```bash
+chmod +x deploy/railway/backup-db.sh deploy/railway/restore-db.sh
+```
+
+### Create a backup
+
+```bash
+./deploy/railway/backup-db.sh
+```
+
+Optional flags:
+
+```bash
+./deploy/railway/backup-db.sh --output-dir backups
+./deploy/railway/backup-db.sh --db-path /app/data/calorie-tracker.db
+./deploy/railway/backup-db.sh --keep-intermediate
+```
+
+The script uses base64 transfer plus `PRAGMA integrity_check` to avoid corrupted binary exports.
+
+### Restore from a backup
+
+```bash
+./deploy/railway/restore-db.sh --backup-file backups/calorie-tracker-YYYY-MM-DD-HHMMSS.db
+```
+
+Optional flags:
+
+```bash
+./deploy/railway/restore-db.sh --backup-file backups/calorie-tracker-YYYY-MM-DD-HHMMSS.db --db-path /app/data/calorie-tracker.db
+./deploy/railway/restore-db.sh --backup-file backups/calorie-tracker-YYYY-MM-DD-HHMMSS.db --skip-redeploy
+```
+
+Restore script safety behavior:
+
+1. Validates backup integrity locally.
+2. Creates an automatic pre-restore snapshot in `backups/pre-restore`.
+3. Restores the selected DB file.
+4. Redeploys service by default so the app reopens the restored SQLite file.
+
 ### Backup Strategy (Optional)
 
 Add a backup endpoint or script that:
