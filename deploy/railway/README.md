@@ -259,6 +259,56 @@ Restore script safety behavior:
 3. Restores the selected DB file.
 4. Redeploys service by default so the app reopens the restored SQLite file.
 
+### Quick run (exact commands)
+
+From repository root:
+
+```bash
+chmod +x deploy/railway/backup-db.sh deploy/railway/restore-db.sh
+
+# Backup
+./deploy/railway/backup-db.sh
+
+# Restore
+./deploy/railway/restore-db.sh --backup-file backups/calorie-tracker-YYYY-MM-DD-HHMMSS.db
+```
+
+### How to read a `.db` backup file on macOS
+
+Use `sqlite3` from terminal:
+
+```bash
+# Replace with your backup filename
+DB_FILE="backups/calorie-tracker-YYYY-MM-DD-HHMMSS.db"
+
+# 1) Verify database integrity
+sqlite3 "$DB_FILE" "PRAGMA integrity_check;"
+
+# 2) List all tables
+sqlite3 "$DB_FILE" ".tables"
+
+# 3) Open interactive SQLite shell
+sqlite3 "$DB_FILE"
+```
+
+Useful commands inside the interactive SQLite shell:
+
+```sql
+.tables
+.schema food_entries
+SELECT COUNT(*) FROM food_entries;
+SELECT * FROM food_entries ORDER BY created_at DESC LIMIT 20;
+.quit
+```
+
+Optional GUI viewer:
+
+```bash
+brew install --cask db-browser-for-sqlite
+```
+
+Then open the backup file in DB Browser for SQLite.
+
 ### Backup Strategy (Optional)
 
 Add a backup endpoint or script that:
