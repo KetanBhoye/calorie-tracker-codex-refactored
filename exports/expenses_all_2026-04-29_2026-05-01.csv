@@ -1,0 +1,20 @@
+id,date,category,amount,description,payment_method,notes,is_impulse,createdAt
+1,2026-04-29,Credit Card Bill,15080,Axis Bank credit card bill payment,bank_transfer,,false,2026-04-29T06:51:46.226Z
+2,2026-04-29,EMI,16027,MacBook EMI (2nd to last, ends June 2026),auto_debit,,false,2026-04-29T06:55:24.268Z
+3,2026-04-29,Credit Card Bill,6423,Other credit card bill payment,bank_transfer,,false,2026-04-29T07:08:38.134Z
+4,2026-04-29,Subscriptions,1587,Water purifier,auto_debit,,false,2026-04-29T15:58:31.086Z
+5,2026-04-29,Subscriptions,255,LazyPay,auto_debit,,false,2026-04-29T15:58:31.094Z
+6,2026-04-29,Credit Card,2872,Credit card outstanding,bank_transfer,,false,2026-04-29T15:58:31.115Z
+7,2026-04-29,Gym,5000,Gym membership - 3 months,upi,,false,2026-04-29T15:58:31.122Z
+8,2026-04-29,Food & Dining,350,Dinner at Majestic Dragon,upi,,false,2026-04-29T15:58:31.130Z
+9,2026-04-29,Savings Transfer,30000,Transferred to savings account,bank_transfer,,false,2026-04-29T16:10:20.421Z
+10,2026-04-29,Whey Protein,1200,Protein powder,upi,,false,2026-04-29T16:18:06.155Z
+11,2026-05-01,Groceries,911,Blinkit groceries,upi,,false,2026-05-01T15:27:22.625Z
+12,2026-05-01,Food & Dining,336,Starbucks,upi,,false,2026-05-01T15:27:22.632Z
+13,2026-05-01,Parking,60,Mall parking,cash,,false,2026-05-01T15:27:22.640Z
+14,2026-05-01,Groceries,80,Coconut water,upi,,false,2026-05-01T15:27:22.646Z
+15,2026-05-01,Groceries,219,ICould,upi,,false,2026-05-01T15:27:22.650Z
+16,2026-05-01,Groceries,392,Swiggy Instamart Diet Coke,upi,,false,2026-05-01T15:27:22.656Z
+17,2026-05-01,Shopping,249,Mr. DIY,upi,,false,2026-05-01T15:27:22.664Z
+18,2026-05-01,Food & Dining,400,Subway,upi,,false,2026-05-01T15:27:22.669Z
+19,2026-05-01,Food & Dining,80,Naturals ice cream,upi,,false,2026-05-01T15:27:22.676Z

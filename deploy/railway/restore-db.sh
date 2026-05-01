@@ -8,12 +8,14 @@ Usage: ./deploy/railway/restore-db.sh --backup-file <path> [options]
 Options:
 	--backup-file <file>  Local SQLite backup file to restore (required)
 	--db-path <path>      Remote DB path override (default: env DATABASE_PATH or /app/data/calorie-tracker.db)
+	--chunk-size <bytes>  Base64 chunk width for upload (default: 60000)
 	--skip-redeploy       Do not run railway redeploy after restore
 	-h, --help            Show this help
 
 Notes:
 - Requires Railway CLI to be logged in and linked (railway login, railway link).
 - Always creates a pre-restore snapshot in ./backups/pre-restore by default.
+- Set RAILWAY_SERVICE / RAILWAY_ENVIRONMENT to pin Railway target when needed.
 EOF
 }
 
@@ -27,6 +29,7 @@ require_cmd() {
 
 BACKUP_FILE=""
 REMOTE_DB_PATH=""
+CHUNK_SIZE=60000
 SKIP_REDEPLOY=0
 
 while [[ $# -gt 0 ]]; do
@@ -37,6 +40,10 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--db-path)
 			REMOTE_DB_PATH="${2:-}"
+			shift 2
+			;;
+		--chunk-size)
+			CHUNK_SIZE="${2:-}"
 			shift 2
 			;;
 		--skip-redeploy)
@@ -69,6 +76,24 @@ fi
 require_cmd railway
 require_cmd base64
 require_cmd sqlite3
+require_cmd fold
+
+if ! [[ "$CHUNK_SIZE" =~ ^[0-9]+$ ]] || [[ "$CHUNK_SIZE" -lt 1000 ]]; then
+	echo "Invalid --chunk-size: $CHUNK_SIZE (must be an integer >= 1000)" >&2
+	exit 1
+fi
+
+RAILWAY_OPTS=()
+if [[ -n "${RAILWAY_SERVICE:-}" ]]; then
+	RAILWAY_OPTS+=(--service "$RAILWAY_SERVICE")
+fi
+if [[ -n "${RAILWAY_ENVIRONMENT:-}" ]]; then
+	RAILWAY_OPTS+=(--environment "$RAILWAY_ENVIRONMENT")
+fi
+
+railway_ssh() {
+	railway ssh "${RAILWAY_OPTS[@]}" -- "$@"
+}
 
 INTEGRITY_RESULT="$(sqlite3 "$BACKUP_FILE" 'PRAGMA integrity_check;' | tr -d '\r' | tail -n 1)"
 if [[ "$INTEGRITY_RESULT" != "ok" ]]; then
@@ -88,7 +113,7 @@ fi
 "$SCRIPT_DIR/backup-db.sh" "${BACKUP_ARGS[@]}"
 
 if [[ -z "$REMOTE_DB_PATH" ]]; then
-	REMOTE_DB_PATH="$(railway ssh -- 'echo "${DATABASE_PATH:-/app/data/calorie-tracker.db}"' | tr -d '\r' | tail -n 1)"
+	REMOTE_DB_PATH="$(railway_ssh 'echo "${DATABASE_PATH:-/app/data/calorie-tracker.db}"' | tr -d '\r' | tail -n 1)"
 fi
 
 if [[ -z "$REMOTE_DB_PATH" ]]; then
@@ -96,9 +121,17 @@ if [[ -z "$REMOTE_DB_PATH" ]]; then
 	exit 1
 fi
 
-base64 -i "$BACKUP_FILE" | railway ssh -- 'base64 -d > /tmp/restore.db'
+railway_ssh 'rm -f /tmp/restore.db.b64 /tmp/restore.db && : > /tmp/restore.db.b64'
 
-railway ssh -- "set -e; DB='$REMOTE_DB_PATH'; test -f /tmp/restore.db; cp \"\$DB\" \"\${DB}.before-restore-$(date +%F-%H%M%S)\"; mv /tmp/restore.db \"\$DB\"; ls -lh \"\$DB\""
+while IFS= read -r chunk; do
+	railway_ssh "printf '%s\\n' '$chunk' >> /tmp/restore.db.b64"
+done < <(base64 -i "$BACKUP_FILE" | fold -w "$CHUNK_SIZE")
+
+railway_ssh 'base64 -d /tmp/restore.db.b64 > /tmp/restore.db && test -s /tmp/restore.db'
+
+railway_ssh "set -e; DB='$REMOTE_DB_PATH'; test -f /tmp/restore.db; cp \"\$DB\" \"\${DB}.before-restore-$(date +%F-%H%M%S)\"; mv /tmp/restore.db \"\$DB\"; ls -lh \"\$DB\""
+
+railway_ssh 'rm -f /tmp/restore.db.b64'
 
 if [[ "$SKIP_REDEPLOY" -eq 0 ]]; then
 	railway redeploy
