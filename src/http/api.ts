@@ -18,6 +18,7 @@ import {
   verifyPassword,
 } from '../auth/security.js';
 import { FoodEntryRepository } from '../repositories/food-entry.repository.js';
+import { FoodLibraryRepository, type MealType } from '../repositories/food-library.repository.js';
 import { UserProfileRepository } from '../repositories/user-profile.repository.js';
 import { ProfileTrackingRepository } from '../repositories/profile-tracking.repository.js';
 import { updateProfile, getProfileHistory } from '../tools/index.js';
@@ -55,6 +56,24 @@ const entryCreateSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+});
+
+const suggestionsQuerySchema = z.object({
+  meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+});
+
+const foodCreateSchema = z.object({
+  canonical_name: z.string().min(1).max(200),
+  reference_unit: z.string().min(1).max(20),
+  // Per-unit values, so an implausible number here would scale into every
+  // future entry made from this food.
+  calories_per_unit: z.number().min(0).max(1000),
+  protein_g_per_unit: z.number().min(0).max(100).optional(),
+  carbs_g_per_unit: z.number().min(0).max(100).optional(),
+  fat_g_per_unit: z.number().min(0).max(100).optional(),
+  default_quantity: z.number().positive().max(10000).default(1),
+  source: z.enum(['curated_cache', 'openfoodfacts', 'usda', 'manual']).default('manual'),
 });
 
 const entryUpdateSchema = z
@@ -279,6 +298,73 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     } catch (error) {
       console.error('Create entry error:', error);
       res.status(500).json({ error: 'Failed to create entry' });
+    }
+  });
+
+  app.get('/api/suggestions', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = suggestionsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.message });
+        return;
+      }
+
+      const repository = new FoodLibraryRepository(env.DB);
+      const suggestions = await repository.suggestForMeal(
+        req.sessionUser!.userId,
+        parsed.data.meal as MealType,
+        parsed.data.limit
+      );
+
+      res.json({ meal_type: parsed.data.meal, suggestions });
+    } catch (error) {
+      console.error('Suggestions error:', error);
+      res.status(500).json({ error: 'Failed to load suggestions' });
+    }
+  });
+
+  app.get('/api/foods/search', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      if (query.length < 2) {
+        res.status(400).json({ error: 'Query must be at least 2 characters' });
+        return;
+      }
+
+      const repository = new FoodLibraryRepository(env.DB);
+      const foods = await repository.search(req.sessionUser!.userId, query);
+
+      res.json({ query, foods });
+    } catch (error) {
+      console.error('Food search error:', error);
+      res.status(500).json({ error: 'Failed to search foods' });
+    }
+  });
+
+  app.post('/api/foods', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = foodCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.message });
+        return;
+      }
+
+      const repository = new FoodLibraryRepository(env.DB);
+      const foodId = await repository.upsert(req.sessionUser!.userId, {
+        canonical_name: parsed.data.canonical_name,
+        reference_unit: parsed.data.reference_unit,
+        calories_per_unit: parsed.data.calories_per_unit,
+        protein_g_per_unit: parsed.data.protein_g_per_unit ?? null,
+        carbs_g_per_unit: parsed.data.carbs_g_per_unit ?? null,
+        fat_g_per_unit: parsed.data.fat_g_per_unit ?? null,
+        default_quantity: parsed.data.default_quantity,
+        source: parsed.data.source,
+      });
+
+      res.status(201).json({ food_id: foodId });
+    } catch (error) {
+      console.error('Create food error:', error);
+      res.status(500).json({ error: 'Failed to create food' });
     }
   });
 

@@ -46,11 +46,28 @@ async function runMigrations(
     }
 
     const sql = readFileSync(join(migrationsDir, file), 'utf8');
-    await db.exec(sql);
-    await db
-      .prepare('INSERT INTO schema_migrations (name) VALUES (?)')
-      .bind(file)
-      .run();
+
+    // Apply the migration and record it atomically. SQLite has transactional
+    // DDL, so without this a crash between the two steps leaves the schema
+    // changed but unrecorded — and statements like ALTER TABLE ADD COLUMN are
+    // not idempotent, so the next startup fails permanently on "duplicate
+    // column". These run automatically on deploy, so that would be a boot loop.
+    await db.exec('BEGIN');
+    try {
+      await db.exec(sql);
+      await db
+        .prepare('INSERT INTO schema_migrations (name) VALUES (?)')
+        .bind(file)
+        .run();
+      await db.exec('COMMIT');
+    } catch (error) {
+      await db.exec('ROLLBACK');
+      throw new Error(
+        `Migration ${file} failed and was rolled back: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 }
 
