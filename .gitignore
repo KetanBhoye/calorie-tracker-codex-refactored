@@ -73,7 +73,9 @@ coverage/
 # Test files and development scripts
 test-*.sh
 test-*.js
-scripts/
+# Root-anchored: a bare "scripts/" also matches src/scripts/, which silently
+# excluded application code (including the migration scripts) from git.
+/scripts/
 
 # Deployment credentials (sensitive)
 DEPLOYMENT_INFO.md
