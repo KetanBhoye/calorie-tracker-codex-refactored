@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { api, type MealType, type Suggestion } from '../api';
+import { parseISODate } from '../dates';
 
 defineProps<{
   meal: MealType;
@@ -49,9 +50,7 @@ watch(query, (value) => {
 
 /** How long ago a food was last eaten, for the suggestion subtitle. */
 function relativeDay(date: string): string {
-  const days = Math.round(
-    (Date.now() - new Date(`${date}T00:00:00`).getTime()) / 86_400_000
-  );
+  const days = Math.round((Date.now() - parseISODate(date).getTime()) / 86_400_000);
   if (days <= 0) return 'today';
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days}d ago`;

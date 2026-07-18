@@ -23,6 +23,8 @@ import { UserProfileRepository } from '../repositories/user-profile.repository.j
 import { ProfileTrackingRepository } from '../repositories/profile-tracking.repository.js';
 import { updateProfile, getProfileHistory } from '../tools/index.js';
 import { lookupFood } from '../services/food-lookup.js';
+import { DailyActivityRepository } from '../repositories/daily-activity.repository.js';
+import { extractBearerToken, verifyBearerToken } from '../auth/token-auth.js';
 
 interface ApiOptions {
   env: AppEnv;
@@ -60,6 +62,19 @@ const entryCreateSchema = z.object({
   food_id: z.string().uuid().optional(),
   quantity: z.number().positive().max(10000).optional(),
   unit: z.string().max(20).optional(),
+});
+
+const activitySchema = z.object({
+  activity_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // Bounds are generous but finite: Health can emit odd values, and a garbage
+  // step count would distort every chart built on it.
+  steps: z.number().int().min(0).max(200000).nullish(),
+  active_energy_kcal: z.number().min(0).max(20000).nullish(),
+  resting_energy_kcal: z.number().min(0).max(20000).nullish(),
+  exercise_minutes: z.number().int().min(0).max(1440).nullish(),
+  stand_hours: z.number().int().min(0).max(24).nullish(),
+  distance_km: z.number().min(0).max(500).nullish(),
+  source: z.enum(['apple_health', 'manual']).default('apple_health'),
 });
 
 const suggestionsQuerySchema = z.object({
@@ -386,6 +401,67 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     } catch (error) {
       console.error('Weekly stats error:', error);
       res.status(500).json({ error: 'Failed to load stats' });
+    }
+  });
+
+  /**
+   * Accepts a session cookie OR a bearer API token. The Apple Shortcuts
+   * automation that pushes Health data can send a header but cannot hold a
+   * browser session, so token auth is required here.
+   */
+  const requireSessionOrToken = async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const token = extractBearerToken(req.headers.authorization);
+    if (token) {
+      const user = await verifyBearerToken(env.DB, token);
+      if (!user) {
+        res.status(401).json({ error: 'Invalid token' });
+        return;
+      }
+      req.sessionUser = {
+        userId: user.userId,
+        isAdmin: user.isAdmin,
+        name: '',
+        email: '',
+      };
+      next();
+      return;
+    }
+
+    await requireSession(req, res, next);
+  };
+
+  app.post('/api/activity', requireSessionOrToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = activitySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.message });
+        return;
+      }
+
+      const repository = new DailyActivityRepository(env.DB);
+      await repository.upsert(req.sessionUser!.userId, parsed.data);
+
+      res.status(200).json({ ok: true, activity_date: parsed.data.activity_date });
+    } catch (error) {
+      console.error('Activity upsert error:', error);
+      res.status(500).json({ error: 'Failed to save activity' });
+    }
+  });
+
+  app.get('/api/activity', requireSessionOrToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const days = Math.min(365, Math.max(1, Number(req.query.days || '30')));
+      const repository = new DailyActivityRepository(env.DB);
+      const activity = await repository.listRecent(req.sessionUser!.userId, days);
+
+      res.json({ days, activity });
+    } catch (error) {
+      console.error('Activity list error:', error);
+      res.status(500).json({ error: 'Failed to load activity' });
     }
   });
 

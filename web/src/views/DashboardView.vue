@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { toLocalISODate } from '../dates';
 
 interface DailyTotal {
   entry_date: string;
@@ -65,7 +66,7 @@ const bars = computed(() => {
   for (let offset = 13; offset >= 0; offset -= 1) {
     const date = new Date();
     date.setDate(date.getDate() - offset);
-    const key = date.toISOString().split('T')[0]!;
+    const key = toLocalISODate(date);
     const logged = byDate.get(key);
 
     days.push({

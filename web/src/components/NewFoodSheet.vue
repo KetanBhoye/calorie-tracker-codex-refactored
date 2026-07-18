@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { api, type LookupResult, type Suggestion } from '../api';
+import { todayISO } from '../dates';
 
 const props = defineProps<{ initialQuery: string }>();
 const emit = defineEmits<{ created: [food: Suggestion]; cancel: [] }>();
@@ -88,7 +89,7 @@ function toSuggestion(id: string, food: {
     fat_g_per_unit: food.perUnit.fat,
     default_quantity: food.quantity,
     times_logged: 0,
-    last_logged: new Date().toISOString().split('T')[0]!,
+    last_logged: todayISO(),
   };
 }
 

@@ -23,6 +23,9 @@ export interface FoodEntry {
   fat_g: number | null;
   meal_type: MealType | null;
   entry_date: string;
+  /** Portion this entry was logged at; null on rows predating the food library. */
+  quantity?: number | null;
+  unit?: string | null;
   /** Present only on optimistic local rows that haven't reached the server. */
   pending?: boolean;
 }

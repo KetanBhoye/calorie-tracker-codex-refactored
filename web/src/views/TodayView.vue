@@ -8,6 +8,8 @@ import {
   type Suggestion,
   type Totals,
 } from '../api';
+import EntryDetailSheet from '../components/EntryDetailSheet.vue';
+import { addDays, parseISODate, todayISO } from '../dates';
 import MacroBar from '../components/MacroBar.vue';
 import NewFoodSheet from '../components/NewFoodSheet.vue';
 import PortionSheet from '../components/PortionSheet.vue';
@@ -18,7 +20,9 @@ const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 /** Targets from the tracking preferences; the cut goals. */
 const GOALS = { calories: 1900, protein_g: 150, carbs_g: 190, fat_g: 63 };
 
-const today = new Date().toISOString().split('T')[0]!;
+const today = todayISO();
+/** The day being viewed. Defaults to today; the header arrows move it. */
+const viewDate = ref(today);
 const entries = ref<FoodEntry[]>([]);
 const totals = ref<Totals>({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
 const loading = ref(true);
@@ -32,6 +36,27 @@ const suggestionsLoading = ref(false);
 const adjusting = ref<Suggestion | null>(null);
 /** Set while adding a food that isn't in the library. */
 const addingNew = ref<string | null>(null);
+/** The entry whose details are open. */
+const viewingEntry = ref<FoodEntry | null>(null);
+
+function shiftDate(days: number): void {
+  const next = addDays(viewDate.value, days);
+  // Logging ahead of time isn't meaningful, so don't allow future days.
+  if (next > today) return;
+  viewDate.value = next;
+}
+
+const isToday = computed(() => viewDate.value === today);
+
+const dateLabel = computed(() => {
+  if (isToday.value) return 'Today';
+  if (viewDate.value === addDays(today, -1)) return 'Yesterday';
+  return parseISODate(viewDate.value).toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+  });
+});
 
 /** Meal slot guessed from the clock, so the sheet opens on the likely one. */
 function currentMeal(): MealType {
@@ -58,13 +83,13 @@ async function load(): Promise<void> {
   loading.value = true;
   loadError.value = null;
   try {
-    const data = await api.getEntries(today);
+    const data = await api.getEntries(viewDate.value);
     entries.value = data.entries;
     recomputeTotals();
   } catch {
     // The service worker serves the last cached day when offline; a hard
     // failure here means there is nothing cached either.
-    loadError.value = "Couldn't load today's entries.";
+    loadError.value = "Couldn't load entries for this day.";
   } finally {
     loading.value = false;
   }
@@ -105,7 +130,7 @@ function logSuggestion(
     carbs_g: scale(suggestion.carbs_g_per_unit),
     fat_g: scale(suggestion.fat_g_per_unit),
     meal_type: meal,
-    entry_date: today,
+    entry_date: viewDate.value,
     pending: true,
   };
 
@@ -119,7 +144,7 @@ function logSuggestion(
     carbs_g: entry.carbs_g ?? undefined,
     fat_g: entry.fat_g ?? undefined,
     meal_type: meal,
-    entry_date: today,
+    entry_date: viewDate.value,
     food_id: suggestion.id,
     quantity,
     unit: suggestion.reference_unit,
@@ -140,7 +165,21 @@ function onFoodCreated(food: Suggestion): void {
 function removeEntry(entry: FoodEntry): void {
   entries.value = entries.value.filter((candidate) => candidate.id !== entry.id);
   recomputeTotals();
+  viewingEntry.value = null;
   if (!entry.pending) api.deleteEntry(entry.id);
+}
+
+function saveEntry(entry: FoodEntry, changes: Partial<FoodEntry>): void {
+  entries.value = entries.value.map((candidate) =>
+    candidate.id === entry.id ? { ...candidate, ...changes } : candidate
+  );
+  recomputeTotals();
+  viewingEntry.value = null;
+
+  // A still-queued entry has no server-side row to patch yet; the queued
+  // create would overwrite the edit, so re-queue rather than PATCH.
+  if (entry.pending) return;
+  api.updateEntry(entry.id, changes);
 }
 
 const byMeal = computed(() => {
@@ -172,23 +211,40 @@ watch(pendingCount, (count) => {
   }
 });
 
+watch(viewDate, load);
+
 onMounted(load);
 </script>
 
 <template>
   <div class="page">
     <header class="spread">
-      <div>
-        <h1>Today</h1>
-        <p class="muted" style="margin: 0; font-size: 14px">
-          {{ new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) }}
-        </p>
+      <div style="min-width: 0">
+        <div class="date-nav">
+          <button class="nav-btn" aria-label="Previous day" @click="shiftDate(-1)">‹</button>
+          <div class="date-label">
+            <h1>{{ dateLabel }}</h1>
+            <p class="muted date-sub">{{ viewDate }}</p>
+          </div>
+          <button
+            class="nav-btn"
+            aria-label="Next day"
+            :disabled="isToday"
+            @click="shiftDate(1)"
+          >
+            ›
+          </button>
+        </div>
       </div>
       <div style="text-align: right">
         <div style="font-size: 26px; font-weight: 700">{{ totals.calories }}</div>
         <div class="muted" style="font-size: 13px">{{ remaining }} left</div>
       </div>
     </header>
+
+    <button v-if="!isToday" class="jump-today" @click="viewDate = today">
+      Jump to today
+    </button>
 
     <!-- Primary path: opens straight onto the meal slot the clock implies,
          so a repeat log is two taps from launch. -->
@@ -215,14 +271,14 @@ onMounted(load);
 
         <TransitionGroup name="fade" tag="div">
           <div v-for="entry in byMeal[meal]" :key="entry.id" class="entry">
-            <div style="min-width: 0">
-              <div class="entry-name">{{ entry.food_name }}</div>
-              <div class="muted" style="font-size: 13px">
+            <button class="entry-main" @click="viewingEntry = entry">
+              <span class="entry-name">{{ entry.food_name }}</span>
+              <span class="muted entry-sub">
                 {{ entry.calories }} kcal
                 <template v-if="entry.protein_g"> · {{ entry.protein_g }}g protein</template>
                 <span v-if="entry.pending" class="pending">queued</span>
-              </div>
-            </div>
+              </span>
+            </button>
             <button
               class="remove"
               :aria-label="`Remove ${entry.food_name}`"
@@ -257,6 +313,14 @@ onMounted(load);
       @cancel="adjusting = null"
     />
 
+    <EntryDetailSheet
+      v-if="viewingEntry"
+      :entry="viewingEntry"
+      @save="saveEntry(viewingEntry!, $event)"
+      @remove="removeEntry(viewingEntry!)"
+      @cancel="viewingEntry = null"
+    />
+
     <NewFoodSheet
       v-if="addingNew !== null"
       :initial-query="addingNew"
@@ -272,6 +336,66 @@ onMounted(load);
   margin-top: 16px;
   font-size: 16px;
   text-transform: capitalize;
+}
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-btn {
+  width: 34px;
+  min-height: 40px;
+  font-size: 24px;
+  color: var(--text-dim);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.nav-btn:disabled {
+  opacity: 0.25;
+}
+
+.nav-btn:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.date-label {
+  min-width: 0;
+}
+
+.date-sub {
+  margin: 0;
+  font-size: 12px;
+}
+
+.jump-today {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 40px;
+}
+
+.entry-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+  min-height: auto;
+}
+
+.entry-sub {
+  font-size: 13px;
 }
 
 .entry {
