@@ -5,6 +5,9 @@
 node_modules/
 .git/
 .github/
+# Bootstrap seeds tracking preferences from these, and the food library seeder
+# reads the curated macros cache from here, so they must ship with the image.
+!.github/instructions/
 
 # Environment files (set via Railway variables instead)
 .env
