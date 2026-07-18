@@ -9,8 +9,8 @@ export class FoodEntryRepository {
 
     await this.db.prepare(
       `
-      INSERT INTO food_entries (id, user_id, food_name, calories, protein_g, carbs_g, fat_g, meal_type, entry_date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO food_entries (id, user_id, food_name, calories, protein_g, carbs_g, fat_g, meal_type, entry_date, food_id, quantity, unit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
       .bind(
@@ -22,7 +22,10 @@ export class FoodEntryRepository {
         entryData.carbs_g || null,
         entryData.fat_g || null,
         entryData.meal_type || null,
-        entryDate
+        entryDate,
+        entryData.food_id || null,
+        entryData.quantity ?? null,
+        entryData.unit || null
       )
       .run();
 
@@ -93,6 +96,47 @@ export class FoodEntryRepository {
       .run();
 
     return result.meta.changes > 0;
+  }
+
+  /**
+   * Per-day totals for the last `days` days, oldest first. Days with no
+   * entries are omitted rather than returned as zeros — the caller needs to
+   * tell "ate nothing logged" apart from "didn't log", and the history has
+   * real gaps (travel) that must not read as zero-calorie days.
+   */
+  async getDailyTotals(
+    userId: string,
+    days = 30
+  ): Promise<
+    Array<{
+      entry_date: string;
+      calories: number;
+      protein_g: number;
+      carbs_g: number;
+      fat_g: number;
+      entry_count: number;
+    }>
+  > {
+    const result = await this.db
+      .prepare(
+        `
+        SELECT
+          entry_date,
+          SUM(calories) AS calories,
+          COALESCE(SUM(protein_g), 0) AS protein_g,
+          COALESCE(SUM(carbs_g), 0) AS carbs_g,
+          COALESCE(SUM(fat_g), 0) AS fat_g,
+          COUNT(*) AS entry_count
+        FROM food_entries
+        WHERE user_id = ? AND entry_date >= date('now', ?)
+        GROUP BY entry_date
+        ORDER BY entry_date ASC
+        `
+      )
+      .bind(userId, `-${days} days`)
+      .all();
+
+    return result.results;
   }
 
   async delete(entryId: string, userId: string): Promise<boolean> {

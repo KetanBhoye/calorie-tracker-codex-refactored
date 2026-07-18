@@ -56,6 +56,9 @@ const entryCreateSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  food_id: z.string().uuid().optional(),
+  quantity: z.number().positive().max(10000).optional(),
+  unit: z.string().max(20).optional(),
 });
 
 const suggestionsQuerySchema = z.object({
@@ -291,10 +294,26 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
         return;
       }
 
-      const repository = new FoodEntryRepository(env.DB);
-      const entryId = await repository.create(parsed.data, req.sessionUser!.userId);
+      const userId = req.sessionUser!.userId;
+      const library = new FoodLibraryRepository(env.DB);
 
-      res.status(201).json({ entry_id: entryId });
+      // Resolve the canonical food so this entry counts toward future
+      // suggestions. Callers that already know the food (the PWA) pass
+      // food_id; MCP and other clients send free text, so fall back to
+      // matching on the normalised name.
+      let foodId = parsed.data.food_id;
+      if (!foodId) {
+        const match = await library.findByName(userId, parsed.data.food_name);
+        foodId = match?.id;
+      }
+
+      const repository = new FoodEntryRepository(env.DB);
+      const entryId = await repository.create(
+        { ...parsed.data, food_id: foodId },
+        userId
+      );
+
+      res.status(201).json({ entry_id: entryId, food_id: foodId ?? null });
     } catch (error) {
       console.error('Create entry error:', error);
       res.status(500).json({ error: 'Failed to create entry' });
@@ -320,6 +339,52 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     } catch (error) {
       console.error('Suggestions error:', error);
       res.status(500).json({ error: 'Failed to load suggestions' });
+    }
+  });
+
+  app.get('/api/stats/weekly', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const days = Math.min(90, Math.max(7, Number(req.query.days || '30')));
+      const repository = new FoodEntryRepository(env.DB);
+      const daily = await repository.getDailyTotals(req.sessionUser!.userId, days);
+
+      // A day only counts toward the streak if enough was logged to be a real
+      // day's record. The history contains days with a single 240 kcal entry —
+      // those are abandoned logs, not fasts, and counting them would make the
+      // streak flatter.
+      const COMPLETE_DAY_KCAL = 1200;
+      const logged = new Set(daily.filter((d) => d.calories >= COMPLETE_DAY_KCAL).map((d) => d.entry_date));
+
+      let streak = 0;
+      const cursor = new Date();
+      // Today doesn't break the streak until it ends, so start from today only
+      // if it already qualifies, otherwise from yesterday.
+      if (!logged.has(cursor.toISOString().split('T')[0]!)) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      while (logged.has(cursor.toISOString().split('T')[0]!)) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      const complete = daily.filter((d) => d.calories >= COMPLETE_DAY_KCAL);
+      const average =
+        complete.length > 0
+          ? Math.round(complete.reduce((sum, d) => sum + d.calories, 0) / complete.length)
+          : 0;
+
+      res.json({
+        days,
+        daily,
+        streak,
+        days_logged: daily.length,
+        complete_days: complete.length,
+        average_calories: average,
+        complete_day_threshold: COMPLETE_DAY_KCAL,
+      });
+    } catch (error) {
+      console.error('Weekly stats error:', error);
+      res.status(500).json({ error: 'Failed to load stats' });
     }
   });
 

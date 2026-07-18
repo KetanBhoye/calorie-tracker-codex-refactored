@@ -80,3 +80,6 @@ test-*.js
 # Deployment credentials (sensitive)
 DEPLOYMENT_INFO.md
 claude_desktop_config.json
+
+# PWA build output (built in Docker / by pnpm web:build)
+public/app/

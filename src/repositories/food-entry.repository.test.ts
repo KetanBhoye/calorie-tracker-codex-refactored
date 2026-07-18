@@ -83,7 +83,40 @@ describe('FoodEntryRepository', () => {
         null,
         null,
         null,
-        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        // food_id / quantity / unit: absent when the caller doesn't resolve a
+        // library food, which the API layer does before calling create().
+        null,
+        null,
+        null
+      );
+    });
+
+    it('persists the food link when one is supplied', async () => {
+      await repository.create(
+        {
+          food_name: 'Cooked White Rice (150g)',
+          calories: 195,
+          food_id: 'food-abc',
+          quantity: 150,
+          unit: 'g',
+        },
+        'user-123'
+      );
+
+      expect(mockDB.prepare().bind).toHaveBeenCalledWith(
+        expect.any(String),
+        'user-123',
+        'Cooked White Rice (150g)',
+        195,
+        null,
+        null,
+        null,
+        null,
+        expect.any(String),
+        'food-abc',
+        150,
+        'g'
       );
     });
   });

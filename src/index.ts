@@ -130,8 +130,23 @@ export async function createApp(config: AppConfig = getConfig()): Promise<Runnin
     res.sendFile(resolve(publicDir, 'signup.html'));
   });
 
+  // The PWA is a client-routed SPA: every /app/* path that isn't a built asset
+  // must return index.html so a deep link or a home-screen launch into
+  // /app/dashboard resolves instead of 404ing.
+  app.get('/app', (_req, res) => {
+    res.redirect('/app/');
+  });
+
+  app.get(/^\/app\/.*/, (req, res, next) => {
+    if (/\.[a-z0-9]+$/i.test(req.path)) {
+      next();
+      return;
+    }
+    res.sendFile(resolve(publicDir, 'app', 'index.html'));
+  });
+
   app.get('/dashboard', (_req, res) => {
-    res.sendFile(resolve(publicDir, 'dashboard.html'));
+    res.redirect('/app/');
   });
 
   app.get('/', (_req, res) => {

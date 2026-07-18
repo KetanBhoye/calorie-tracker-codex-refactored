@@ -128,6 +128,14 @@ export interface AddEntryParams {
   fat_g?: number;
   meal_type?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   entry_date?: string;
+  /**
+   * Link to the canonical food. Suggestions are ranked by joining entries to
+   * foods, so an entry without this is invisible to the ranking — the API
+   * resolves it by name when the caller doesn't supply it.
+   */
+  food_id?: string;
+  quantity?: number;
+  unit?: string;
 }
 
 export interface UpdateEntryParams {

@@ -205,3 +205,28 @@ describe('upsert', () => {
     expect((raw.prepare('SELECT COUNT(*) n FROM foods').get() as { n: number }).n).toBe(1);
   });
 });
+
+describe('entry linking (regression)', () => {
+  it('findByName resolves a free-text name so MCP entries still feed suggestions', async () => {
+    raw
+      .prepare(
+        `INSERT INTO foods (id, user_id, canonical_name, normalized_key, reference_unit,
+          reference_quantity, calories_per_unit, default_quantity, source)
+         VALUES ('f1', 'admin', 'Cooked White Rice (150g)', 'cooked rice white', 'g', 1, 1.3, 150, 'history')`
+      )
+      .run();
+
+    // The shape a conversational client would send.
+    const found = await repo.findByName('admin', 'Cooked White Rice (200g)');
+    expect(found?.id).toBe('f1');
+  });
+
+  it('an entry linked to a food is picked up by suggestions immediately', async () => {
+    const food = addFood('Avvatar Whey', 130, 'scoop');
+    addEntry(food, 'snack', daysAgo(0));
+
+    const results = await repo.suggestForMeal('admin', 'snack');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.times_logged).toBe(1);
+  });
+});

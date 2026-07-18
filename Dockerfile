@@ -9,6 +9,10 @@ RUN corepack enable && pnpm install --frozen-lockfile --prod=false
 # Copy application files
 COPY . .
 
+# Build the PWA into public/app. Runs before NODE_ENV=production is set so the
+# devDependencies vite needs are still resolvable.
+RUN pnpm web:build
+
 # Set default environment (can be overridden)
 ENV NODE_ENV=production
 ENV PORT=8787
