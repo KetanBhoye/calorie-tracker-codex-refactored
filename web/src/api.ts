@@ -47,6 +47,21 @@ export interface Suggestion {
   last_logged: string;
 }
 
+export interface LookupResult {
+  name: string;
+  brand: string | null;
+  /** The provider's own numbers don't reconcile — show a warning. */
+  suspect: boolean;
+  calories_per_unit: number;
+  protein_g_per_unit: number | null;
+  carbs_g_per_unit: number | null;
+  fat_g_per_unit: number | null;
+  reference_unit: 'g';
+  default_quantity: number;
+  source: 'openfoodfacts' | 'usda';
+  source_ref: string | null;
+}
+
 interface QueuedWrite {
   id: string;
   method: 'POST' | 'PATCH' | 'DELETE';
@@ -170,6 +185,25 @@ export const api = {
 
   async getDashboard(): Promise<unknown> {
     return request('/api/dashboard');
+  },
+
+  /** External food databases, for foods with no logging history. */
+  async lookupFood(query: string): Promise<{ results: LookupResult[] }> {
+    return request(`/api/foods/lookup?q=${encodeURIComponent(query)}`);
+  },
+
+  /** Adds a food to the personal library and returns its id. */
+  async createFood(food: {
+    canonical_name: string;
+    reference_unit: string;
+    calories_per_unit: number;
+    protein_g_per_unit?: number;
+    carbs_g_per_unit?: number;
+    fat_g_per_unit?: number;
+    default_quantity: number;
+    source: 'openfoodfacts' | 'usda' | 'manual';
+  }): Promise<{ food_id: string }> {
+    return request('/api/foods', { method: 'POST', body: JSON.stringify(food) });
   },
 
   /**

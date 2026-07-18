@@ -22,6 +22,7 @@ import { FoodLibraryRepository, type MealType } from '../repositories/food-libra
 import { UserProfileRepository } from '../repositories/user-profile.repository.js';
 import { ProfileTrackingRepository } from '../repositories/profile-tracking.repository.js';
 import { updateProfile, getProfileHistory } from '../tools/index.js';
+import { lookupFood } from '../services/food-lookup.js';
 
 interface ApiOptions {
   env: AppEnv;
@@ -403,6 +404,25 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     } catch (error) {
       console.error('Food search error:', error);
       res.status(500).json({ error: 'Failed to search foods' });
+    }
+  });
+
+  app.get('/api/foods/lookup', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      if (query.length < 2) {
+        res.status(400).json({ error: 'Query must be at least 2 characters' });
+        return;
+      }
+
+      const results = await lookupFood(query);
+      res.json({ query, results });
+    } catch (error) {
+      // lookupFood already degrades to an empty list on provider failure, so
+      // reaching here means something unexpected — still answer with an empty
+      // set so the user falls through to entering macros manually.
+      console.error('Food lookup error:', error);
+      res.json({ query: req.query.q, results: [] });
     }
   });
 

@@ -39,7 +39,14 @@ export default defineConfig({
         // it has one.
         runtimeCaching: [
           {
-            urlPattern: /\/api\/(entries|dashboard|suggestions|foods)/,
+            // External food lookup must never be cached. It's a live search
+            // against Open Food Facts, and caching it means one slow call that
+            // returns an empty 200 gets replayed as "nothing found" forever.
+            urlPattern: /\/api\/foods\/lookup/,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /\/api\/(entries|dashboard|suggestions|foods\/search)/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

@@ -10,6 +10,8 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [suggestion: Suggestion];
+  adjust: [suggestion: Suggestion];
+  addNew: [query: string];
   close: [];
 }>();
 
@@ -116,18 +118,28 @@ onMounted(() => sheet.value?.focus());
           <p v-else-if="searchError" class="hint" style="color: var(--danger)">
             {{ searchError }}
           </p>
-          <p v-else-if="results.length === 0" class="muted hint">
-            No match in your library yet.
-          </p>
-          <button
-            v-for="food in results"
-            :key="food.id"
-            class="item"
-            @click="emit('select', food)"
-          >
-            <span class="item-name">{{ displayName(food) }}</span>
-            <span class="muted item-sub">{{ macroLine(food) }}</span>
-          </button>
+          <div v-else-if="results.length === 0" class="empty">
+            <p class="muted hint" style="padding-bottom: 8px">
+              "{{ query.trim() }}" isn't in your library yet.
+            </p>
+            <button class="btn wide" @click="emit('addNew', query.trim())">
+              Add "{{ query.trim() }}"
+            </button>
+          </div>
+          <div v-for="food in results" :key="food.id" class="item-row">
+            <button class="item" @click="emit('select', food)">
+              <span class="item-name">{{ displayName(food) }}</span>
+              <span class="muted item-sub">{{ macroLine(food) }}</span>
+            </button>
+            <button
+              class="portion"
+              :aria-label="`Change portion for ${displayName(food)}`"
+              @click="emit('adjust', food)"
+            >
+              {{ food.default_quantity }}{{ food.reference_unit === 'serving' ? '' : food.reference_unit }}
+              <span class="pencil">edit</span>
+            </button>
+          </div>
         </template>
 
         <template v-else>
@@ -136,21 +148,34 @@ onMounted(() => sheet.value?.focus());
           </template>
 
           <p v-else-if="suggestions.length === 0" class="muted hint">
-            Nothing logged for {{ meal }} yet — search above to add something.
+            Nothing logged for {{ meal }} yet — search above, or add a new food.
           </p>
 
-          <button
-            v-for="food in suggestions"
-            :key="food.id"
-            class="item"
-            @click="emit('select', food)"
-          >
-            <span class="item-name">{{ displayName(food) }}</span>
-            <span class="muted item-sub">
-              {{ macroLine(food) }} · {{ food.times_logged }}× · {{ relativeDay(food.last_logged) }}
-            </span>
-          </button>
+          <div v-for="food in suggestions" :key="food.id" class="item-row">
+            <button class="item" @click="emit('select', food)">
+              <span class="item-name">{{ displayName(food) }}</span>
+              <span class="muted item-sub">
+                {{ macroLine(food) }} · {{ food.times_logged }}× · {{ relativeDay(food.last_logged) }}
+              </span>
+            </button>
+            <button
+              class="portion"
+              :aria-label="`Change portion for ${displayName(food)}`"
+              @click="emit('adjust', food)"
+            >
+              {{ food.default_quantity }}{{ food.reference_unit === 'serving' ? '' : food.reference_unit }}
+              <span class="pencil">edit</span>
+            </button>
+          </div>
         </template>
+
+        <button
+          v-if="query.trim().length < 2"
+          class="btn btn-ghost wide add-new"
+          @click="emit('addNew', '')"
+        >
+          + Add a food that isn't listed
+        </button>
       </div>
     </div>
   </div>
@@ -220,6 +245,59 @@ onMounted(() => sheet.value?.focus());
 .item:active {
   transform: scale(0.985);
   border-color: var(--accent-dim);
+}
+
+.item-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.item-row .item {
+  flex: 1;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+/* Separate target so the common case (log the usual amount) stays one tap,
+   while changing the portion is still reachable without a hidden gesture. */
+.portion {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 64px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.portion:active {
+  border-color: var(--accent-dim);
+}
+
+.pencil {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wide {
+  width: 100%;
+}
+
+.add-new {
+  margin-top: 4px;
+}
+
+.empty {
+  padding-top: 8px;
 }
 
 .item-name {

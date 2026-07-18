@@ -9,6 +9,8 @@ import {
   type Totals,
 } from '../api';
 import MacroBar from '../components/MacroBar.vue';
+import NewFoodSheet from '../components/NewFoodSheet.vue';
+import PortionSheet from '../components/PortionSheet.vue';
 import QuickLogSheet from '../components/QuickLogSheet.vue';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -25,6 +27,11 @@ const loadError = ref<string | null>(null);
 const activeMeal = ref<MealType | null>(null);
 const suggestions = ref<Suggestion[]>([]);
 const suggestionsLoading = ref(false);
+
+/** Set while adjusting a portion; null when the quick list is showing. */
+const adjusting = ref<Suggestion | null>(null);
+/** Set while adding a food that isn't in the library. */
+const addingNew = ref<string | null>(null);
 
 /** Meal slot guessed from the clock, so the sheet opens on the likely one. */
 function currentMeal(): MealType {
@@ -77,9 +84,16 @@ async function openMeal(meal: MealType): Promise<void> {
   }
 }
 
-/** One-tap repeat log: writes optimistically, queue handles delivery. */
-function logSuggestion(suggestion: Suggestion, meal: MealType): void {
-  const quantity = suggestion.default_quantity;
+/**
+ * Logs a food at a given portion, defaulting to the usual amount. Writes
+ * optimistically; the queue guarantees delivery.
+ */
+function logSuggestion(
+  suggestion: Suggestion,
+  meal: MealType,
+  portion?: number
+): void {
+  const quantity = portion ?? suggestion.default_quantity;
   const scale = (value: number | null) =>
     value === null ? null : Math.round(value * quantity * 10) / 10;
 
@@ -112,7 +126,15 @@ function logSuggestion(suggestion: Suggestion, meal: MealType): void {
   });
 
   activeMeal.value = null;
+  adjusting.value = null;
+  addingNew.value = null;
   if (navigator.vibrate) navigator.vibrate(8);
+}
+
+/** A newly created food goes straight to the portion step, pre-filled. */
+function onFoodCreated(food: Suggestion): void {
+  addingNew.value = null;
+  adjusting.value = food;
 }
 
 function removeEntry(entry: FoodEntry): void {
@@ -218,12 +240,28 @@ onMounted(load);
     </template>
 
     <QuickLogSheet
-      v-if="activeMeal"
+      v-if="activeMeal && !adjusting && addingNew === null"
       :meal="activeMeal"
       :suggestions="suggestions"
       :loading="suggestionsLoading"
       @select="logSuggestion($event, activeMeal!)"
+      @adjust="adjusting = $event"
+      @add-new="addingNew = $event"
       @close="activeMeal = null"
+    />
+
+    <PortionSheet
+      v-if="adjusting"
+      :food="adjusting"
+      @confirm="logSuggestion(adjusting!, activeMeal!, $event)"
+      @cancel="adjusting = null"
+    />
+
+    <NewFoodSheet
+      v-if="addingNew !== null"
+      :initial-query="addingNew"
+      @created="onFoodCreated"
+      @cancel="addingNew = null"
     />
   </div>
 </template>
