@@ -4,10 +4,13 @@
 # Development
 node_modules/
 .git/
-.github/
-# Bootstrap seeds tracking preferences from these, and the food library seeder
-# reads the curated macros cache from here, so they must ship with the image.
-!.github/instructions/
+# NB: .github as a whole must NOT be excluded — bootstrap seeds tracking
+# preferences from .github/instructions, and the food library seeder reads the
+# curated macros cache from there. A "!.github/instructions/" negation does not
+# work: like gitignore, a path inside an excluded directory cannot be
+# re-included. So exclude only the parts that aren't needed at runtime.
+.github/workflows/
+.github/copilot-instructions.md
 
 # Environment files (set via Railway variables instead)
 .env
