@@ -9,6 +9,8 @@
  */
 import Database from 'better-sqlite3';
 import { writeFileSync } from 'node:fs';
+import { argv } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { buildClusters, type Cluster, type EntryRow } from '../utils/food-clustering.js';
 import { normalizeFoodName, parseQuantity } from '../utils/food-normalize.js';
 
@@ -212,4 +214,7 @@ function main(): void {
   db.close();
 }
 
-main();
+// Only run when executed directly, so the module can be imported by tests.
+if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) {
+  main();
+}
