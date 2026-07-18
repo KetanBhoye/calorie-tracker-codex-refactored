@@ -130,8 +130,19 @@ const QUANTITY_UNIT_RE = new RegExp(
  * "Cooked Rice (160g)" -> { quantity: 160, unit: 'g' }
  * "Chapati (2)"        -> { quantity: 2, unit: 'piece' }
  */
+/**
+ * Quantities that describe a macro rather than the portion:
+ * "RiteBite Max Protein bar (₹80, 10g protein)" is one bar, not 10 grams.
+ */
+const MACRO_QUALIFIED_RE =
+  /\d+(?:\.\d+)?\s*(?:g|mg|ml)\s*(?:of\s+)?(?:protein|carbs?|carbohydrates?|fat|fibre|fiber|sugar|sodium|salt)\b/gi;
+
 export function parseQuantity(name: string): ParsedQuantity | null {
-  const withUnit = name.match(QUANTITY_UNIT_RE);
+  // Strip macro claims before looking for a portion, or the first number in
+  // the name wins and the food gets a meaningless unit.
+  const cleaned = name.replace(MACRO_QUALIFIED_RE, ' ');
+
+  const withUnit = cleaned.match(QUANTITY_UNIT_RE);
   if (withUnit?.[1] && withUnit[2]) {
     const quantity = Number.parseFloat(withUnit[1]);
     const unit = UNIT_ALIASES[withUnit[2].toLowerCase()];
@@ -142,7 +153,7 @@ export function parseQuantity(name: string): ParsedQuantity | null {
 
   // Leading bare count: "2 chapatis", "3 Boiled Eggs". Without this the
   // quantity reads as 1 and per-unit macros come out N times too high.
-  const leadingCount = name.match(/^\s*(\d{1,2})\s+[a-z]/i);
+  const leadingCount = cleaned.match(/^\s*(\d{1,2})\s+[a-z]/i);
   if (leadingCount?.[1]) {
     const quantity = Number.parseInt(leadingCount[1], 10);
     if (quantity > 0 && quantity <= 20) {
@@ -151,7 +162,7 @@ export function parseQuantity(name: string): ParsedQuantity | null {
   }
 
   // Bare count: "Chapati (2)", "Boiled Eggs x3", "Whole eggs (3, boiled)"
-  const bareCount = name.match(/(?:\(|\bx\s*)(\d+)(?:[,)\s]|$)/i);
+  const bareCount = cleaned.match(/(?:\(|\bx\s*)(\d+)(?:[,)\s]|$)/i);
   if (bareCount?.[1]) {
     const quantity = Number.parseInt(bareCount[1], 10);
     if (Number.isFinite(quantity) && quantity > 0 && quantity <= 20) {

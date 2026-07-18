@@ -118,3 +118,25 @@ describe('parseQuantity — leading counts', () => {
     expect(parseQuantity('2 rotis (100g)')).toEqual({ quantity: 100, unit: 'g' });
   });
 });
+
+describe('parseQuantity — macro claims in the name', () => {
+  it('ignores a macro claim and finds no portion', () => {
+    // Real case: this was read as a 10 gram portion of a protein bar.
+    expect(parseQuantity('RiteBite Max Protein bar (₹80, 10g protein)')).toBeNull();
+  });
+
+  it('still finds a real portion alongside a macro claim', () => {
+    expect(parseQuantity('Whey scoop (35g, 25g protein)')).toEqual({
+      quantity: 35,
+      unit: 'g',
+    });
+  });
+
+  it('ignores several macro claims', () => {
+    expect(parseQuantity('Bar (20g protein, 30g carbs, 5g fat)')).toBeNull();
+  });
+
+  it('does not strip a plain weight', () => {
+    expect(parseQuantity('Paneer (100g)')).toEqual({ quantity: 100, unit: 'g' });
+  });
+});
