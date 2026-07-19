@@ -938,6 +938,28 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     }
   });
 
+  app.post('/api/tokens/revoke', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const result = await env.DB
+        .prepare('UPDATE users SET api_key_hash = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(req.sessionUser!.userId)
+        .run();
+
+      if (result.meta.changes === 0) {
+        res.status(404).json({ error: 'Token not found.' });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        message: 'API token revoked. You can now generate a new one.',
+      });
+    } catch (error) {
+      console.error('Token revoke error:', error);
+      res.status(500).json({ error: 'Failed to revoke API token' });
+    }
+  });
+
   app.get('/api/admin/bootstrap-info', requireSession, async (req: AuthenticatedRequest, res) => {
     if (!req.sessionUser?.isAdmin) {
       res.status(403).json({ error: 'Admin access required' });

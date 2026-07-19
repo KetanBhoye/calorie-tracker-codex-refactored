@@ -14,6 +14,7 @@ const token = ref<string | null>(null);
 const hasToken = ref(false);
 const confirming = ref(false);
 const working = ref(false);
+const revoking = ref(false);
 const error = ref<string | null>(null);
 const copied = ref(false);
 
@@ -66,6 +67,29 @@ async function rotate(): Promise<void> {
   }
 }
 
+async function revoke(): Promise<void> {
+  revoking.value = true;
+  error.value = null;
+  try {
+    const response = await fetch('/api/tokens/revoke', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (response.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!response.ok) throw new Error('failed');
+    hasToken.value = false;
+    token.value = null;
+    confirming.value = false;
+  } catch {
+    error.value = "Couldn't revoke the current token.";
+  } finally {
+    revoking.value = false;
+  }
+}
+
 async function copy(): Promise<void> {
   if (!token.value) return;
   try {
@@ -103,9 +127,11 @@ onMounted(() => {
 
     <template v-else-if="hasToken">
       <p class="warn-note">
-        An API token is already set. It stays valid until the account is revoked, and this page
-        will not generate a replacement.
+        An API token is already set. Revoke it first if you want to generate a different one.
       </p>
+      <button class="btn btn-ghost wide" :disabled="revoking" @click="revoke">
+        {{ revoking ? 'Revoking…' : 'Revoke token' }}
+      </button>
     </template>
 
     <template v-else-if="confirming">
@@ -121,7 +147,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <button v-else class="btn btn-ghost wide" :disabled="hasToken" @click="confirming = true">
+    <button v-else class="btn btn-ghost wide" @click="confirming = true">
       Generate API token
     </button>
 
