@@ -21,6 +21,7 @@ This uses Shortcuts. Free, no Mac, runs unattended once set up.
 | `exercise_minutes` | Exercise Minutes | Training consistency |
 | `stand_hours` | Stand Hours | Optional |
 | `distance_km` | Walking + Running Distance | Optional |
+| `weight_kg` | Body Mass | Latest weigh-in shown on the Goals tab |
 
 Every field is optional. Re-running for a day already recorded **corrects** it
 rather than duplicating, and a partial push leaves other fields intact — so
@@ -54,7 +55,7 @@ Shortcuts app → **+** → add these actions.
 **Find Health Samples returns a list of individual samples, not a total**, so
 each metric needs a pair of actions: one to find the samples, one to sum them.
 
-For each of the four metrics below, add **three** actions:
+For each of the four movement metrics below, add **three** actions:
 
 1. **Find Health Samples**
    - `Type` is the metric, `Start Date` **is today**
@@ -83,6 +84,18 @@ Samples` from the Find directly above it rather than an earlier one.
 number against today's figure in the Health app. If it doesn't match, the rest
 of the shortcut is built on a broken assumption — fix it here.
 
+Then add a weight branch:
+
+1. **Find Health Samples**
+   - `Type` is `Body Mass`, `Start Date` is today
+   - Sort by `Start Date`, newest first, and Limit to `1`
+2. **Get Details of Health Samples**
+   - Detail: `Value`
+3. **Set Variable** — store the result under `WeightKg`
+
+If you do not weigh yourself on a given day, you can leave this branch out and
+the rest of the shortcut still works.
+
 Then:
 
 3. **Format Date**
@@ -106,6 +119,7 @@ Then:
      | `active_energy_kcal` | Number | `ActiveEnergy` |
      | `exercise_minutes` | Number | `ExerciseMinutes` |
      | `distance_km` | Number | `Distance` |
+    | `weight_kg` | Number | `WeightKg` |
 
 Field names must match exactly — `exercise_minutes`, not `excercise_minutes`.
 The endpoint rejects unknown keys and names the offending one, so a typo fails

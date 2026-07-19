@@ -95,6 +95,9 @@ const activitySchema = z.object({
   exercise_minutes: z.number().int().min(0).max(1440).nullish(),
   stand_hours: z.number().int().min(0).max(24).nullish(),
   distance_km: z.number().min(0).max(500).nullish(),
+  // Apple Health body mass is stored separately so the Goals view can surface
+  // the latest weigh-in without mixing it into activity totals.
+  weight_kg: z.number().min(1).max(1000).nullish(),
   source: z.enum(['apple_health', 'manual']).default('apple_health'),
 })
   // Reject unknown keys rather than ignoring them. This payload is assembled
@@ -495,10 +498,34 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
         return;
       }
 
+      const { weight_kg, ...activity } = parsed.data;
       const repository = new DailyActivityRepository(env.DB);
-      await repository.upsert(req.sessionUser!.userId, parsed.data);
 
-      res.status(200).json({ ok: true, activity_date: parsed.data.activity_date });
+      await repository.upsert(req.sessionUser!.userId, activity);
+
+      if (weight_kg !== null && weight_kg !== undefined) {
+        const userId = req.sessionUser!.userId;
+        const profileTrackingRepo = new ProfileTrackingRepository(env.DB);
+        const existingTracking = await profileTrackingRepo.getTrackingByDate(
+          userId,
+          activity.activity_date
+        );
+
+        if (existingTracking) {
+          await profileTrackingRepo.updateTracking(existingTracking.id, {
+            weight_kg,
+            recorded_date: activity.activity_date,
+          });
+        } else {
+          await profileTrackingRepo.createTracking({
+            user_id: userId,
+            recorded_date: activity.activity_date,
+            weight_kg,
+          });
+        }
+      }
+
+      res.status(200).json({ ok: true, activity_date: activity.activity_date });
     } catch (error) {
       console.error('Activity upsert error:', error);
       res.status(500).json({ error: 'Failed to save activity' });
