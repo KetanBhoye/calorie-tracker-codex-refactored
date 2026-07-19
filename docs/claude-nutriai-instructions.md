@@ -74,6 +74,12 @@ refresh, and vice versa.
 
 ---
 
+## Getting a token for the connector
+
+App → **Plan** tab → **Connections** → **Generate API token**. Shown once, and
+generating a new one invalidates the old — if the Health Shortcut is using the
+same token, update it too.
+
 ## What the connector can and can't do
 
 | I want to… | How |

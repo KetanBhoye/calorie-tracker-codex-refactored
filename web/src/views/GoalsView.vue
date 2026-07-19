@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { todayISO } from '../dates';
 import GlideChart from '../components/GlideChart.vue';
+import TokenCard from '../components/TokenCard.vue';
 
 interface GlideWeek {
   week: number;
@@ -284,6 +285,9 @@ onMounted(load);
         </div>
 
         <button class="btn btn-ghost wide" @click="editing = true">Edit plan</button>
+
+        <h2>Connections</h2>
+        <TokenCard />
       </template>
 
       <template v-else>

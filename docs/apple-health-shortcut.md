@@ -40,17 +40,12 @@ Same reason your own notes say not to eat back Watch active calories.
 
 ### 1. Get an API token
 
-Sign in to the app in Safari, then from a terminal:
+Open the app → **Plan** tab → scroll to **Connections** → **Generate API token**,
+then Copy.
 
-```bash
-curl -X POST https://calorie-tracker-codex-refactored-production.up.railway.app/api/tokens/rotate \
-  -H "Cookie: ct_sid=<your session cookie>"
-```
-
-Copy the token. Treat it like a password — it grants full access to your log.
-
-**Rotating issues a new token and invalidates the old one**, which will break
-the Claude connector if it's using the same one. Rotate once, then update both.
+The token is shown once. Generating a new one **invalidates the previous
+token**, so anything already using it — the Health Shortcut, the Claude
+connector — stops working until you paste the new one in.
 
 ### 2. Build the Shortcut
 
