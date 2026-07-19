@@ -173,7 +173,32 @@ function enqueue(method: QueuedWrite['method'], path: string, body?: unknown): v
   void flushQueue();
 }
 
+export interface Goals {
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+/** Used only until the real goals arrive, and if preferences hold none. */
+export const FALLBACK_GOALS: Goals = {
+  calories: 1900,
+  protein_g: 150,
+  carbs_g: 190,
+  fat_g: 63,
+};
+
 export const api = {
+  async getGoals(): Promise<Goals> {
+    const me = await request<{ goals: Partial<Goals> | null }>('/api/me');
+    return {
+      calories: me.goals?.calories ?? FALLBACK_GOALS.calories,
+      protein_g: me.goals?.protein_g ?? FALLBACK_GOALS.protein_g,
+      carbs_g: me.goals?.carbs_g ?? FALLBACK_GOALS.carbs_g,
+      fat_g: me.goals?.fat_g ?? FALLBACK_GOALS.fat_g,
+    };
+  },
+
   async getEntries(date: string): Promise<{ entries: FoodEntry[]; totals: Totals }> {
     return request(`/api/entries?date=${encodeURIComponent(date)}&limit=100`);
   },

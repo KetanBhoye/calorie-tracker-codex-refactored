@@ -261,11 +261,34 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
 
   app.get('/api/me', requireSession, async (req: AuthenticatedRequest, res) => {
     const user = req.sessionUser!;
+
+    // Goals live in user_tracking_preferences and are editable through the MCP
+    // connector, so the app must read them rather than hardcode a copy that
+    // silently drifts out of date.
+    const prefs = await env.DB
+      .prepare(
+        `SELECT daily_calorie_goal, daily_protein_goal_g, daily_carbs_goal_g, daily_fat_goal_g
+         FROM user_tracking_preferences WHERE user_id = ?`
+      )
+      .bind(user.userId)
+      .first<{
+        daily_calorie_goal: number | null;
+        daily_protein_goal_g: number | null;
+        daily_carbs_goal_g: number | null;
+        daily_fat_goal_g: number | null;
+      }>();
+
     res.json({
       id: user.userId,
       name: user.name,
       email: user.email,
       role: user.isAdmin ? 'admin' : 'user',
+      goals: {
+        calories: prefs?.daily_calorie_goal ?? null,
+        protein_g: prefs?.daily_protein_goal_g ?? null,
+        carbs_g: prefs?.daily_carbs_goal_g ?? null,
+        fat_g: prefs?.daily_fat_goal_g ?? null,
+      },
     });
   });
 

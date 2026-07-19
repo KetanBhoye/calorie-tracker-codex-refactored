@@ -2,7 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import {
   api,
+  FALLBACK_GOALS,
   pendingCount,
+  type Goals,
   type FoodEntry,
   type MealType,
   type Suggestion,
@@ -17,8 +19,11 @@ import QuickLogSheet from '../components/QuickLogSheet.vue';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-/** Targets from the tracking preferences; the cut goals. */
-const GOALS = { calories: 1900, protein_g: 150, carbs_g: 190, fat_g: 63 };
+/**
+ * Goals come from tracking preferences, which are editable through the MCP
+ * connector. The fallback only covers the first paint and a missing record.
+ */
+const goals = ref<Goals>({ ...FALLBACK_GOALS });
 
 const today = todayISO();
 /** The day being viewed. Defaults to today; the header arrows move it. */
@@ -195,7 +200,7 @@ const byMeal = computed(() => {
   return grouped;
 });
 
-const remaining = computed(() => Math.max(0, GOALS.calories - totals.value.calories));
+const remaining = computed(() => Math.max(0, goals.value.calories - totals.value.calories));
 
 watch(activeMeal, (meal) => {
   document.body.style.overflow = meal ? 'hidden' : '';
@@ -213,7 +218,14 @@ watch(pendingCount, (count) => {
 
 watch(viewDate, load);
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  try {
+    goals.value = await api.getGoals();
+  } catch {
+    // Keep the fallback; goals are display-only and must not block logging.
+  }
+});
 </script>
 
 <template>
@@ -264,7 +276,7 @@ onMounted(load);
     </div>
 
     <template v-else>
-      <MacroBar :totals="totals" :goals="GOALS" />
+      <MacroBar :totals="totals" :goals="goals" />
 
       <section v-for="meal in MEALS" :key="meal">
         <h2>{{ meal }}</h2>
