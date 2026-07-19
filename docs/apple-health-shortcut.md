@@ -94,6 +94,8 @@ Then:
    - Method: **POST**
    - Headers:
      - `Authorization` → `Bearer <your token>`
+       — the literal word `Bearer`, a space, then the token. The token on its
+       own returns 401.
      - `Content-Type` → `application/json`
    - Request Body: **JSON**
 
@@ -104,6 +106,10 @@ Then:
      | `active_energy_kcal` | Number | `ActiveEnergy` |
      | `exercise_minutes` | Number | `ExerciseMinutes` |
      | `distance_km` | Number | `Distance` |
+
+Field names must match exactly — `exercise_minutes`, not `excercise_minutes`.
+The endpoint rejects unknown keys and names the offending one, so a typo fails
+loudly instead of silently dropping that metric every night.
 
 Name it **Push Health to NutriAI**.
 

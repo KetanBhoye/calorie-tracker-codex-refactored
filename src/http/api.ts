@@ -96,7 +96,12 @@ const activitySchema = z.object({
   stand_hours: z.number().int().min(0).max(24).nullish(),
   distance_km: z.number().min(0).max(500).nullish(),
   source: z.enum(['apple_health', 'manual']).default('apple_health'),
-});
+})
+  // Reject unknown keys rather than ignoring them. This payload is assembled
+  // by hand in Shortcuts, where a typo like "excercise_minutes" would
+  // otherwise be silently dropped every night while the request still
+  // returned success — the metric would just never appear.
+  .strict();
 
 const suggestionsQuerySchema = z.object({
   meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
@@ -449,11 +454,24 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     res: Response,
     next: NextFunction
   ) => {
-    const token = extractBearerToken(req.headers.authorization);
+    const authHeader = req.headers.authorization;
+
+    // A header that's present but not "Bearer <token>" is almost always a
+    // client sending the raw token. Say so: falling through to the generic
+    // "Authentication required" gives no clue what's wrong.
+    if (authHeader && !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        error:
+          'Authorization header must be "Bearer <token>" — it looks like the "Bearer " prefix is missing.',
+      });
+      return;
+    }
+
+    const token = extractBearerToken(authHeader);
     if (token) {
       const user = await verifyBearerToken(env.DB, token);
       if (!user) {
-        res.status(401).json({ error: 'Invalid token' });
+        res.status(401).json({ error: 'Invalid or expired token' });
         return;
       }
       req.sessionUser = {
