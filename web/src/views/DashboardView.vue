@@ -28,7 +28,10 @@ async function load(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    const response = await fetch('/api/stats/weekly?days=30', { credentials: 'same-origin' });
+    const response = await fetch('/api/stats/weekly?days=30', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
     if (response.status === 401) {
       window.location.href = '/login';
       return;

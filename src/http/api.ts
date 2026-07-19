@@ -403,6 +403,10 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
 
   app.get('/api/stats/weekly', requireSession, async (req: AuthenticatedRequest, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
       const days = Math.min(90, Math.max(7, Number(req.query.days || '30')));
       const repository = new FoodEntryRepository(env.DB);
       const daily = await repository.getDailyTotals(req.sessionUser!.userId, days);
