@@ -49,19 +49,39 @@ connector — stops working until you paste the new one in.
 
 ### 2. Build the Shortcut
 
-Shortcuts app → **+** → add these actions in order:
+Shortcuts app → **+** → add these actions.
+
+**Find Health Samples returns a list of individual samples, not a total**, so
+each metric needs a pair of actions: one to find the samples, one to sum them.
+
+For each of the four metrics below:
 
 1. **Find Health Samples**
-   - Type: `Steps`, Date `is today`, **Sum** results
-   - Rename the output variable to `Steps`
-2. **Find Health Samples** — `Active Energy`, today, Sum → `ActiveEnergy`
-3. **Find Health Samples** — `Exercise Minutes`, today, Sum → `ExerciseMinutes`
-4. **Find Health Samples** — `Walking + Running Distance`, today, Sum → `Distance`
-5. **Format Date**
+   - `Type` is the metric, `Start Date` **is today**
+   - Leave Group by / Sort by as `None` and Limit off
+2. **Calculate Statistics**
+   - Operation: **Sum**
+   - Input: the **Health Samples** variable from the step above
+   - Rename the result so you can find it later
+
+| Metric | Health type | Name the result |
+|---|---|---|
+| Steps | `Steps` | `Steps` |
+| Active energy | `Active Energy` | `ActiveEnergy` |
+| Exercise | `Exercise Minutes` | `ExerciseMinutes` |
+| Distance | `Walking + Running Distance` | `Distance` |
+
+**Build the steps pair first and run it (▶︎) before adding the rest.** Check the
+number against today's figure in the Health app. If it doesn't match, the rest
+of the shortcut is built on a broken assumption — fix it here.
+
+Then:
+
+3. **Format Date**
    - Date: `Current Date`
-   - Format: Custom, `yyyy-MM-dd` → `Today`
+   - Format: Custom, `yyyy-MM-dd` → name it `Today`
    - This is your local calendar day, which is what the app stores.
-6. **Get Contents of URL**
+4. **Get Contents of URL**
    - URL: `https://calorie-tracker-codex-refactored-production.up.railway.app/api/activity`
    - Method: **POST**
    - Headers:
@@ -78,6 +98,9 @@ Shortcuts app → **+** → add these actions in order:
      | `distance_km` | Number | `Distance` |
 
 Name it **Push Health to NutriAI**.
+
+Every field is optional server-side, so if one metric proves awkward, leave it
+out and the rest still work.
 
 ### 3. Automate at 11:40 PM
 
