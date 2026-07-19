@@ -54,22 +54,30 @@ Shortcuts app → **+** → add these actions.
 **Find Health Samples returns a list of individual samples, not a total**, so
 each metric needs a pair of actions: one to find the samples, one to sum them.
 
-For each of the four metrics below:
+For each of the four metrics below, add **three** actions:
 
 1. **Find Health Samples**
    - `Type` is the metric, `Start Date` **is today**
    - Leave Group by / Sort by as `None` and Limit off
 2. **Calculate Statistics**
-   - Operation: **Sum**
-   - Input: the **Health Samples** variable from the step above
-   - Rename the result so you can find it later
+   - Operation: **Sum**, Input: the `Health Samples` from the action above
+3. **Set Variable** — store the result under the name in the table
 
-| Metric | Health type | Name the result |
+| Metric | Health type | Variable name |
 |---|---|---|
 | Steps | `Steps` | `Steps` |
 | Active energy | `Active Energy` | `ActiveEnergy` |
 | Exercise | `Exercise Minutes` | `ExerciseMinutes` |
 | Distance | `Walking + Running Distance` | `Distance` |
+
+The `Set Variable` steps are not optional. Without them you end up with four
+actions all named "Statistics" and four named "Health Samples", and when
+building the JSON body there is no way to tell them apart — sending your step
+count as your calorie burn is a very easy mistake to make and a hard one to
+notice afterwards.
+
+When adding each `Calculate Statistics`, check it references the `Health
+Samples` from the Find directly above it rather than an earlier one.
 
 **Build the steps pair first and run it (▶︎) before adding the rest.** Check the
 number against today's figure in the Health app. If it doesn't match, the rest
