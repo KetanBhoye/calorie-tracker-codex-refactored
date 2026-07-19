@@ -23,6 +23,7 @@ import { UserProfileRepository } from '../repositories/user-profile.repository.j
 import { ProfileTrackingRepository } from '../repositories/profile-tracking.repository.js';
 import { updateProfile, getProfileHistory } from '../tools/index.js';
 import { lookupFood } from '../services/food-lookup.js';
+import { linkEntryToFood } from '../services/entry-linking.js';
 import { DailyActivityRepository } from '../repositories/daily-activity.repository.js';
 import { extractBearerToken, verifyBearerToken } from '../auth/token-auth.js';
 
@@ -311,25 +312,16 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
       }
 
       const userId = req.sessionUser!.userId;
-      const library = new FoodLibraryRepository(env.DB);
 
-      // Resolve the canonical food so this entry counts toward future
-      // suggestions. Callers that already know the food (the PWA) pass
-      // food_id; MCP and other clients send free text, so fall back to
-      // matching on the normalised name.
-      let foodId = parsed.data.food_id;
-      if (!foodId) {
-        const match = await library.findByName(userId, parsed.data.food_name);
-        foodId = match?.id;
-      }
+      // Callers that already know the food (the PWA) pass food_id; anything
+      // sending free text gets resolved here so the entry still counts toward
+      // future suggestions.
+      const linked = await linkEntryToFood(env.DB, userId, parsed.data);
 
       const repository = new FoodEntryRepository(env.DB);
-      const entryId = await repository.create(
-        { ...parsed.data, food_id: foodId },
-        userId
-      );
+      const entryId = await repository.create(linked, userId);
 
-      res.status(201).json({ entry_id: entryId, food_id: foodId ?? null });
+      res.status(201).json({ entry_id: entryId, food_id: linked.food_id ?? null });
     } catch (error) {
       console.error('Create entry error:', error);
       res.status(500).json({ error: 'Failed to create entry' });
