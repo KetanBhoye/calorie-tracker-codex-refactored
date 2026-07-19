@@ -1,39 +1,46 @@
-# Apple Health → NutriAI
+# Apple Health → NutriAI (daily 11:40 PM push)
 
 ## Why a Shortcut and not a direct integration
 
 iOS gives web apps **no HealthKit access**. There is no permission prompt a PWA
-can trigger — the API simply isn't exposed to Safari. The only ways to read
+can trigger — the API isn't exposed to Safari at all. The only ways to read
 Health data are a native app (Mac + Xcode + $99/yr Apple Developer account) or
 the Shortcuts app, which can read Health and make HTTP requests.
 
-This uses Shortcuts. It's free, needs no Mac, and runs unattended once set up.
+This uses Shortcuts. Free, no Mac, runs unattended once set up.
 
-## What gets stored
+## What it sends
 
-`POST /api/activity` upserts one row per day in `daily_activity`:
+`POST /api/activity` upserts one row per day:
 
-| Field | Health source |
-|---|---|
-| `steps` | Steps |
-| `active_energy_kcal` | Active Energy |
-| `resting_energy_kcal` | Resting Energy |
-| `exercise_minutes` | Exercise Minutes |
-| `stand_hours` | Stand Hours |
-| `distance_km` | Walking + Running Distance |
+| Field | Health source | Used for |
+|---|---|---|
+| `steps` | Steps | Steps average on the Plan tab, vs your daily step goal |
+| `active_energy_kcal` | Active Energy | Recorded, not added to TDEE — see below |
+| `resting_energy_kcal` | Resting Energy | Recorded for reference |
+| `exercise_minutes` | Exercise Minutes | Training consistency |
+| `stand_hours` | Stand Hours | Optional |
+| `distance_km` | Walking + Running Distance | Optional |
 
 Every field is optional. Re-running for a day already recorded **corrects** it
-rather than duplicating, and a partial push (say, steps only) leaves the other
-fields intact — so you can start with steps and add more later.
+rather than duplicating, and a partial push leaves other fields intact — so
+you can start with steps alone and add more later.
 
-Active and resting energy are stored separately on purpose. Your TDEE already
-includes resting burn, so adding both to it would double-count.
+### Why active energy is not added to your deficit
 
-## Setup
+Your deficit on the Plan tab is `TDEE − intake`. TDEE already includes the
+movement you normally do. Adding Apple Health active energy on top would count
+that movement twice and inflate the deficit — the single most common way a
+tracker like this quietly lies to you. Active energy is stored, and shown, but
+never folded into the deficit maths.
+
+Same reason your own notes say not to eat back Watch active calories.
+
+## Setup (about 10 minutes)
 
 ### 1. Get an API token
 
-Sign in to the app, then:
+Sign in to the app in Safari, then from a terminal:
 
 ```bash
 curl -X POST https://calorie-tracker-codex-refactored-production.up.railway.app/api/tokens/rotate \
@@ -41,50 +48,64 @@ curl -X POST https://calorie-tracker-codex-refactored-production.up.railway.app/
 ```
 
 Copy the token. Treat it like a password — it grants full access to your log.
-Rotating issues a new token and invalidates the old one.
+
+**Rotating issues a new token and invalidates the old one**, which will break
+the Claude connector if it's using the same one. Rotate once, then update both.
 
 ### 2. Build the Shortcut
 
-In the Shortcuts app, create a new shortcut with these actions in order:
+Shortcuts app → **+** → add these actions in order:
 
-1. **Find Health Samples** — Steps, where Date is Today, **Sum** the results.
-   Set variable `Steps`.
-2. **Find Health Samples** — Active Energy, Date is Today, Sum → `ActiveEnergy`.
-3. **Find Health Samples** — Exercise Minutes, Date is Today, Sum → `ExerciseMinutes`.
-4. **Format Date** — Current Date, custom format `yyyy-MM-dd` → `Today`.
-   Use the local date, not UTC: a day here is your local calendar day.
-5. **Get Contents of URL**:
+1. **Find Health Samples**
+   - Type: `Steps`, Date `is today`, **Sum** results
+   - Rename the output variable to `Steps`
+2. **Find Health Samples** — `Active Energy`, today, Sum → `ActiveEnergy`
+3. **Find Health Samples** — `Exercise Minutes`, today, Sum → `ExerciseMinutes`
+4. **Find Health Samples** — `Walking + Running Distance`, today, Sum → `Distance`
+5. **Format Date**
+   - Date: `Current Date`
+   - Format: Custom, `yyyy-MM-dd` → `Today`
+   - This is your local calendar day, which is what the app stores.
+6. **Get Contents of URL**
    - URL: `https://calorie-tracker-codex-refactored-production.up.railway.app/api/activity`
    - Method: **POST**
    - Headers:
-     - `Authorization`: `Bearer <your token>`
-     - `Content-Type`: `application/json`
+     - `Authorization` → `Bearer <your token>`
+     - `Content-Type` → `application/json`
    - Request Body: **JSON**
-     ```
-     activity_date  (Text)   → Today
-     steps          (Number) → Steps
-     active_energy_kcal (Number) → ActiveEnergy
-     exercise_minutes   (Number) → ExerciseMinutes
-     ```
 
-### 3. Automate it
+     | Key | Type | Value |
+     |---|---|---|
+     | `activity_date` | Text | `Today` |
+     | `steps` | Number | `Steps` |
+     | `active_energy_kcal` | Number | `ActiveEnergy` |
+     | `exercise_minutes` | Number | `ExerciseMinutes` |
+     | `distance_km` | Number | `Distance` |
 
-Automation tab → **Create Personal Automation** → **Time of Day** → 11:30 PM,
-Daily → run this shortcut. Turn **Ask Before Running** off so it runs silently.
+Name it **Push Health to NutriAI**.
 
-Late evening is deliberate: run it at midnight and you risk recording a day
-that has just rolled over.
+### 3. Automate at 11:40 PM
 
-## Verifying
+Automation tab → **Create Personal Automation** → **Time of Day**
+→ `11:40 PM`, **Daily** → **Run Immediately**, and turn **Notify When Run** off.
+
+11:40 PM is late enough to capture nearly the whole day and early enough that
+the date hasn't rolled over. Running at midnight risks recording an empty day.
+
+## Verifying it works
+
+After the first run:
 
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "https://calorie-tracker-codex-refactored-production.up.railway.app/api/activity?days=7"
 ```
 
-## Validation
+Or open the **Plan** tab in the app — `STEPS AVG` fills in once there's data.
 
-The endpoint rejects implausible values rather than storing them (steps above
-200,000, energy above 20,000 kcal, exercise above 1440 minutes). A rejected
-push returns 400 and stores nothing, so a bad Health reading can't distort the
-charts built on this data.
+## If a value looks wrong
+
+The endpoint rejects implausible numbers rather than storing them: steps above
+200,000, energy above 20,000 kcal, exercise above 1440 minutes. A rejected push
+returns `400` and stores nothing, so a bad Health reading can't distort the
+charts. Re-run the Shortcut for that day to correct it.

@@ -13,6 +13,11 @@
 
   /* Minimum comfortable one-handed touch target. */
   --tap: 48px;
+
+  /* Tabular mono for figures — keeps columns of numbers from jittering.
+     System stack rather than a webfont: the PWA must work offline, and a
+     blocked font request would leave numbers unstyled. */
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -167,4 +172,9 @@ h2 {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }

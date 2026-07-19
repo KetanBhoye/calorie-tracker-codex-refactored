@@ -24,6 +24,9 @@ import { ProfileTrackingRepository } from '../repositories/profile-tracking.repo
 import { updateProfile, getProfileHistory } from '../tools/index.js';
 import { lookupFood } from '../services/food-lookup.js';
 import { linkEntryToFood } from '../services/entry-linking.js';
+import { GoalPlanRepository } from '../repositories/goal-plan.repository.js';
+import { DailyActivityRepository as ActivityRepo } from '../repositories/daily-activity.repository.js';
+import { buildDeficitSeries, buildGlidePath, weeklyDeficit } from '../services/goal-progress.js';
 import { DailyActivityRepository } from '../repositories/daily-activity.repository.js';
 import { extractBearerToken, verifyBearerToken } from '../auth/token-auth.js';
 
@@ -63,6 +66,23 @@ const entryCreateSchema = z.object({
   food_id: z.string().uuid().optional(),
   quantity: z.number().positive().max(10000).optional(),
   unit: z.string().max(20).optional(),
+});
+
+const goalPlanSchema = z.object({
+  start_weight_kg: z.number().min(20).max(400),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  goal_weight_kg: z.number().min(20).max(400),
+  target_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  tolerance_kg: z.number().min(0.05).max(3).default(0.3),
+  daily_step_goal: z.number().int().min(0).max(100000).nullish(),
+  weekly_training_days: z.number().int().min(0).max(7).nullish(),
+  // Macro goals live in preferences; accepted here so one save updates both.
+  daily_calorie_goal: z.number().int().min(800).max(8000).nullish(),
+  daily_protein_goal_g: z.number().min(0).max(500).nullish(),
+  daily_carbs_goal_g: z.number().min(0).max(1000).nullish(),
+  daily_fat_goal_g: z.number().min(0).max(500).nullish(),
+}).refine((v) => v.target_date > v.start_date, {
+  message: 'Target date must be after the start date',
 });
 
 const activitySchema = z.object({
@@ -477,6 +497,127 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
     } catch (error) {
       console.error('Activity list error:', error);
       res.status(500).json({ error: 'Failed to load activity' });
+    }
+  });
+
+  app.get('/api/goals', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.sessionUser!.userId;
+      const planRepo = new GoalPlanRepository(env.DB);
+      const plan = await planRepo.getActive(userId);
+
+      const prefs = await env.DB
+        .prepare(
+          `SELECT daily_calorie_goal, daily_protein_goal_g, daily_carbs_goal_g, daily_fat_goal_g
+           FROM user_tracking_preferences WHERE user_id = ?`
+        )
+        .bind(userId)
+        .first<Record<string, number | null>>();
+
+      const tracking = await env.DB
+        .prepare(
+          `SELECT recorded_date, weight_kg, tdee_calories FROM profile_tracking
+           WHERE user_id = ? ORDER BY recorded_date ASC`
+        )
+        .bind(userId)
+        .all<{ recorded_date: string; weight_kg: number | null; tdee_calories: number | null }>();
+
+      const weighIns = tracking.results ?? [];
+      const glide = plan ? buildGlidePath(plan, weighIns) : [];
+
+      const dailyIntake = await env.DB
+        .prepare(
+          `SELECT entry_date, SUM(calories) AS calories FROM food_entries
+           WHERE user_id = ? AND entry_date >= date('now', '-60 days')
+           GROUP BY entry_date`
+        )
+        .bind(userId)
+        .all<{ entry_date: string; calories: number }>();
+
+      // Only days with a plausibly complete log feed the deficit: a day with
+      // one 240 kcal entry would otherwise read as a 2600 kcal deficit.
+      const intakeByDate = new Map(
+        (dailyIntake.results ?? [])
+          .filter((row) => row.calories >= 1200)
+          .map((row) => [row.entry_date, row.calories] as const)
+      );
+      const tdeeByDate = new Map(
+        weighIns
+          .filter((row) => row.tdee_calories !== null)
+          .map((row) => [row.recorded_date, row.tdee_calories!] as const)
+      );
+
+      const latestTdee = [...tdeeByDate.values()].pop() ?? null;
+      const deficitDays = buildDeficitSeries(intakeByDate, tdeeByDate, latestTdee);
+
+      const activityRepo = new ActivityRepo(env.DB);
+      const activity = await activityRepo.listRecent(userId, 60);
+
+      res.json({
+        plan,
+        macros: {
+          calories: prefs?.daily_calorie_goal ?? null,
+          protein_g: prefs?.daily_protein_goal_g ?? null,
+          carbs_g: prefs?.daily_carbs_goal_g ?? null,
+          fat_g: prefs?.daily_fat_goal_g ?? null,
+        },
+        glide_path: glide,
+        weekly_deficit: weeklyDeficit(deficitDays),
+        latest_weight:
+          [...weighIns].reverse().find((row) => row.weight_kg !== null)?.weight_kg ?? null,
+        activity,
+      });
+    } catch (error) {
+      console.error('Goals load error:', error);
+      res.status(500).json({ error: 'Failed to load goals' });
+    }
+  });
+
+  app.put('/api/goals', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = goalPlanSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.message });
+        return;
+      }
+
+      const userId = req.sessionUser!.userId;
+      const planRepo = new GoalPlanRepository(env.DB);
+      await planRepo.replaceActive(userId, parsed.data);
+
+      // Macro goals are shared with the MCP connector, so only overwrite the
+      // fields actually supplied rather than blanking the rest.
+      const macros = parsed.data;
+      if (
+        macros.daily_calorie_goal != null ||
+        macros.daily_protein_goal_g != null ||
+        macros.daily_carbs_goal_g != null ||
+        macros.daily_fat_goal_g != null
+      ) {
+        await env.DB
+          .prepare(
+            `UPDATE user_tracking_preferences SET
+               daily_calorie_goal = COALESCE(?, daily_calorie_goal),
+               daily_protein_goal_g = COALESCE(?, daily_protein_goal_g),
+               daily_carbs_goal_g = COALESCE(?, daily_carbs_goal_g),
+               daily_fat_goal_g = COALESCE(?, daily_fat_goal_g),
+               updated_at = CURRENT_TIMESTAMP
+             WHERE user_id = ?`
+          )
+          .bind(
+            macros.daily_calorie_goal ?? null,
+            macros.daily_protein_goal_g ?? null,
+            macros.daily_carbs_goal_g ?? null,
+            macros.daily_fat_goal_g ?? null,
+            userId
+          )
+          .run();
+      }
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Goals save error:', error);
+      res.status(500).json({ error: 'Failed to save goals' });
     }
   });
 
