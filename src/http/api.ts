@@ -893,6 +893,18 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
 
   app.post('/api/tokens/rotate', requireSession, async (req: AuthenticatedRequest, res) => {
     try {
+      const existingToken = await env.DB
+        .prepare('SELECT api_key_hash FROM users WHERE id = ?')
+        .bind(req.sessionUser!.userId)
+        .first<{ api_key_hash: string | null }>();
+
+      if (existingToken?.api_key_hash) {
+        res.status(409).json({
+          error: 'API token already exists and cannot be replaced.',
+        });
+        return;
+      }
+
       const token = randomToken(24);
 
       await env.DB
@@ -902,11 +914,27 @@ export function registerApiRoutes(app: Express, options: ApiOptions): void {
 
       res.json({
         token,
-        message: 'New API token generated. Store it securely; it will not be shown again.',
+        message: 'API token generated. Store it securely; it cannot be replaced later.',
       });
     } catch (error) {
       console.error('Token rotate error:', error);
       res.status(500).json({ error: 'Failed to rotate API token' });
+    }
+  });
+
+  app.get('/api/tokens/status', requireSession, async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = await env.DB
+        .prepare('SELECT api_key_hash FROM users WHERE id = ?')
+        .bind(req.sessionUser!.userId)
+        .first<{ api_key_hash: string | null }>();
+
+      res.json({
+        has_token: Boolean(user?.api_key_hash),
+      });
+    } catch (error) {
+      console.error('Token status error:', error);
+      res.status(500).json({ error: 'Failed to load token status' });
     }
   });
 

@@ -44,9 +44,9 @@ Same reason your own notes say not to eat back Watch active calories.
 Open the app → **Plan** tab → scroll to **Connections** → **Generate API token**,
 then Copy.
 
-The token is shown once. Generating a new one **invalidates the previous
-token**, so anything already using it — the Health Shortcut, the Claude
-connector — stops working until you paste the new one in.
+The token is shown once. It cannot be replaced later, so anything already
+using it — the Health Shortcut, the Claude connector — keeps working until the
+account itself is reset or revoked.
 
 ### 2. Build the Shortcut
 

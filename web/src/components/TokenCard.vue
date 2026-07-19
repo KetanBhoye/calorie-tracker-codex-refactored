@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 /**
  * API token management.
@@ -11,10 +11,26 @@ import { ref } from 'vue';
  */
 
 const token = ref<string | null>(null);
+const hasToken = ref(false);
 const confirming = ref(false);
 const working = ref(false);
 const error = ref<string | null>(null);
 const copied = ref(false);
+
+async function loadStatus(): Promise<void> {
+  try {
+    const response = await fetch('/api/tokens/status', { credentials: 'same-origin' });
+    if (response.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!response.ok) throw new Error('failed');
+    const data = (await response.json()) as { has_token?: boolean };
+    hasToken.value = Boolean(data.has_token);
+  } catch {
+    error.value = "Couldn't load token status.";
+  }
+}
 
 async function rotate(): Promise<void> {
   working.value = true;
@@ -28,13 +44,23 @@ async function rotate(): Promise<void> {
       window.location.href = '/login';
       return;
     }
+    if (response.status === 409) {
+      const data = (await response.json()) as { error?: string };
+      hasToken.value = true;
+      token.value = null;
+      confirming.value = false;
+      throw new Error(data.error ?? 'token already exists');
+    }
     if (!response.ok) throw new Error('failed');
     const data = (await response.json()) as { token?: string; error?: string };
     if (!data.token) throw new Error(data.error ?? 'failed');
     token.value = data.token;
+    hasToken.value = true;
     confirming.value = false;
   } catch {
-    error.value = "Couldn't generate a token. Check your connection.";
+    error.value = token.value
+      ? "Couldn't generate a token. Check your connection."
+      : 'An API token already exists and cannot be replaced.';
   } finally {
     working.value = false;
   }
@@ -52,6 +78,10 @@ async function copy(): Promise<void> {
     error.value = 'Copy blocked — select the token and copy it manually.';
   }
 }
+
+onMounted(() => {
+  void loadStatus();
+});
 </script>
 
 <template>
@@ -66,16 +96,22 @@ async function copy(): Promise<void> {
       <code class="token mono">{{ token }}</code>
       <button class="btn copy" @click="copy">{{ copied ? 'Copied' : 'Copy' }}</button>
       <p class="warn-note">
-        Shown once. Save it now — reopening this page won't show it again, and generating
-        another replaces it.
+        Shown once. Save it now — reopening this page won't show it again, and it cannot be
+        replaced later.
       </p>
     </div>
 
+    <template v-else-if="hasToken">
+      <p class="warn-note">
+        An API token is already set. It stays valid until the account is revoked, and this page
+        will not generate a replacement.
+      </p>
+    </template>
+
     <template v-else-if="confirming">
       <p class="warn-note">
-        A new token <strong>immediately invalidates the current one</strong>. Anything already
-        using it — the Health Shortcut, the Claude connector — stops working until you paste the
-        new one in.
+        This creates your one and only API token. If you lose it, you will need the account
+        reset or a different authentication path.
       </p>
       <div class="row" style="margin-top: 12px">
         <button class="btn btn-ghost" style="flex: 1" @click="confirming = false">Cancel</button>
@@ -85,7 +121,7 @@ async function copy(): Promise<void> {
       </div>
     </template>
 
-    <button v-else class="btn btn-ghost wide" @click="confirming = true">
+    <button v-else class="btn btn-ghost wide" :disabled="hasToken" @click="confirming = true">
       Generate API token
     </button>
 
